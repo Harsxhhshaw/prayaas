@@ -41,11 +41,11 @@ class Settings(BaseSettings):
     app_title: str = "PRAYAAS Geospatial Intelligence API"
 
     # ── CORS ──
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: str | list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", mode="after")
     @classmethod
-    def normalize_cors_origins(cls, v: Any) -> Any:
+    def normalize_cors_origins(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             v = v.strip()
             if v.startswith("[") and v.endswith("]"):
