@@ -64,3 +64,5 @@ pgdata/
 *.sln
 *.sw?
 
+
+.vercel
