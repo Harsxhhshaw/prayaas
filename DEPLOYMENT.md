@@ -1,126 +1,66 @@
-# PRAYAAS Production Deployment Guide: Render (Backend) & Vercel (Frontend)
+# PRAYAAS Production Deployment Guide & Live Services Reference
 
-This guide walks you through deploying the complete PRAYAAS Geospatial Intelligence platform to **Render** (FastAPI + PostGIS) and **Vercel** (Vite + React GIS Workstation).
+This document tracks the live production deployment of the **PRAYAAS Geospatial Intelligence Platform** on **Render** (FastAPI + PostGIS) and **Vercel** (Vite + React GIS Workstation).
+
+---
+
+## Live Deployments (Verified & Active)
+
+| Component | Platform | Live URL / Endpoint | Status |
+| :--- | :--- | :--- | :--- |
+| **GitHub Repository** | GitHub | [https://github.com/Harsxhhshaw/prayaas](https://github.com/Harsxhhshaw/prayaas) | `main` branch synced |
+| **Backend API (Base)** | Render | [https://prayaas-backend-y1e6.onrender.com](https://prayaas-backend-y1e6.onrender.com) | **200 OK** |
+| **API Health Check** | Render | [https://prayaas-backend-y1e6.onrender.com/api/health](https://prayaas-backend-y1e6.onrender.com/api/health) | `{"status":"ok","service":"prayaas-api"}` |
+| **Database & PostGIS** | Render | [https://prayaas-backend-y1e6.onrender.com/api/health/database](https://prayaas-backend-y1e6.onrender.com/api/health/database) | `PostGIS 3.6 USE_GEOS=1 USE_PROJ=1` |
+| **Interactive Docs** | Render | [https://prayaas-backend-y1e6.onrender.com/docs](https://prayaas-backend-y1e6.onrender.com/docs) | Swagger UI |
+| **Frontend Workstation** | Vercel | [https://prayaas-7fxgsq80i-harsxhhshaws-projects.vercel.app](https://prayaas-7fxgsq80i-harsxhhshaws-projects.vercel.app) | **200 OK** |
+| **Production Alias** | Vercel | [https://prayaas-five.vercel.app](https://prayaas-five.vercel.app) | Aliased |
+| **Vercel Dashboard** | Vercel | [https://vercel.com/harsxhhshaws-projects/prayaas](https://vercel.com/harsxhhshaws-projects/prayaas) | Project Configured |
 
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────┐           ┌───────────────────────────────────┐
-│         VERCEL FRONTEND         │           │          RENDER BACKEND           │
-│  Vite + React + Leaflet         │           │  FastAPI + GeoAlchemy2            │
-│  URL: https://prayaas.vercel.app│──(HTTPS)─▶│  URL: https://prayaas.onrender.com│
-└─────────────────────────────────┘           └─────────────────┬─────────────────┘
-                                                                │ (PostgreSQL)
-                                              ┌─────────────────▼─────────────────┐
-                                              │      RENDER POSTGIS DATABASE      │
-                                              │  PostgreSQL 16 + PostGIS 3.4      │
-                                              │  Tables: habitations, zones, etc. │
-                                              └───────────────────────────────────┘
+┌─────────────────────────────────────────┐           ┌──────────────────────────────────────────────┐
+│             VERCEL FRONTEND             │           │                RENDER BACKEND                │
+│  Vite + React 19 + TypeScript + Leaflet │           │  FastAPI + SQLAlchemy 2.0 + GeoAlchemy2      │
+│  URL: https://prayaas-five.vercel.app   │──(HTTPS)─▶│  URL: https://prayaas-backend-y1e6.onrender.com│
+└─────────────────────────────────────────┘           └──────────────────────┬───────────────────────┘
+                                                                             │ (PostgreSQL)
+                                                      ┌──────────────────────▼───────────────────────┐
+                                                      │           RENDER POSTGIS DATABASE            │
+                                                      │  PostgreSQL 16 + PostGIS 3.6                 │
+                                                      │  Tables: habitations, hazard_zones,          │
+                                                      │  candidate_sites, relocation_evaluations...  │
+                                                      └──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Step 1: Push Repository to GitHub
+## Deployed Features & Live Verification
 
-Create a new repository on GitHub (e.g. `prayaas`), then run:
+### 1. Backend & PostGIS (Render)
+- **Container**: Docker image based on `python:3.12-slim` with system GEOS/Proj dependencies.
+- **Auto-Migration**: Startup runs `alembic upgrade head`, ensuring PostGIS extension is initialized and all tables/indexes are created.
+- **Auto-Seeding**: Runs `python -m app.seeds.seed_chamoli` idempotently.
+- **CORS Handling**: Supports both JSON arrays and raw string origins (including wildcards and Vercel domains).
 
-```bash
-# Rename branch to main
-git branch -M main
-
-# Add your GitHub remote
-git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/prayaas.git
-
-# Push the codebase
-git push -u origin main
-```
+### 2. Frontend GIS Workstation (Vercel)
+- **Framework**: Vite + React 19 + TypeScript.
+- **Environment Variables**: `VITE_API_BASE_URL` is set to `https://prayaas-backend-y1e6.onrender.com`.
+- **Client Routing**: Configured with SPA rewrites to ensure direct route visits (`/red-zones`, `/data-sources`, `/relocation-priority`) load smoothly without 404s.
 
 ---
 
-## Step 2: Deploy Backend & Database on Render
+## Verification Endpoints
 
-We have provided a production-ready `render.yaml` Blueprint in the root directory.
+1. **System Health**:
+   - `GET /api/health` → `{"status": "ok", "service": "prayaas-api"}`
+   - `GET /api/health/database` → `{"status": "ok", "database": "postgresql+postgis", "postgis_version": "3.6 ..."}`
 
-### Option A: 1-Click Render Blueprint (Recommended)
-1. Log in to [Render Dashboard](https://dashboard.render.com).
-2. Click **New +** → **Blueprint**.
-3. Connect your GitHub repository (`prayaas`).
-4. Render will read `render.yaml` and automatically configure:
-   - **Database**: `prayaas-postgis` (PostgreSQL with PostGIS enabled).
-   - **Web Service**: `prayaas-backend` (Docker container built from `backend/Dockerfile`).
-   - Automatically injects `DATABASE_URL` linking the service to the database.
-   - Automatically sets `CORS_ORIGINS=*`.
-5. Click **Apply**.
-6. The container automatically:
-   - Runs `alembic upgrade head` (enables PostGIS and creates all spatial schemas).
-   - Seeds the Chamoli baseline dataset idempotently.
-   - Starts the Uvicorn server on `$PORT`.
-7. Once deployed, copy your backend URL:
-   `https://prayaas-backend.onrender.com`
-
-### Option B: Manual Setup on Render
-If configuring manually:
-1. **Create PostgreSQL Database**:
-   - Name: `prayaas-postgis`
-   - Database: `prayaas`
-   - User: `prayaas`
-   - Plan: Free or Starter
-2. **Create Web Service**:
-   - Environment: **Docker**
-   - Root Directory: `backend` (or build context `backend`, Dockerfile `backend/Dockerfile`)
-   - Health Check Path: `/api/health`
-   - Environment Variables:
-     - `DATABASE_URL`: Paste the Internal Connection String from your database (our backend automatically normalizes `postgres://` to `postgresql+psycopg://`).
-     - `APP_ENV`: `production`
-     - `APP_DEBUG`: `false`
-     - `CORS_ORIGINS`: `*` (or your Vercel URL once known)
-
----
-
-## Step 3: Deploy Frontend on Vercel
-
-### Option A: Vercel Web Dashboard (Recommended)
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New...** → **Project**.
-2. Select your `prayaas` repository from GitHub.
-3. Configure the Project:
-   - **Framework Preset**: `Vite` (automatically detected).
-   - **Root Directory**: `./` (leave default).
-   - **Build Command**: `npm run build` (or leave default).
-   - **Output Directory**: `dist` (handled by `vercel.json`).
-4. **Environment Variables**:
-   Add the following environment variable:
-   - **Key**: `VITE_API_BASE_URL`
-   - **Value**: `https://<YOUR_RENDER_BACKEND_URL>` (e.g. `https://prayaas-backend.onrender.com`)
-5. Click **Deploy**.
-6. Vercel will build and assign your production domain:
-   `https://prayaas.vercel.app`
-
-### Option B: Vercel CLI
-If deploying via CLI:
-```bash
-npx vercel
-# Follow prompts: Link to existing project or create new.
-# Set VITE_API_BASE_URL:
-npx vercel env add VITE_API_BASE_URL production
-# Enter your Render URL when prompted, then deploy to production:
-npx vercel --prod
-```
-
----
-
-## Step 4: Verification Checklist
-
-1. **Backend Health Check**:
-   Open in your browser:
-   - `https://<YOUR_RENDER_URL>/api/health` → `{"status": "ok", "service": "prayaas-api"}`
-   - `https://<YOUR_RENDER_URL>/api/health/database` → `{"status": "ok", "postgis_version": "3.4 ..."}`
-   - `https://<YOUR_RENDER_URL>/docs` → Swagger UI with all 20+ endpoints.
-
-2. **Frontend Workstation**:
-   Open `https://<YOUR_VERCEL_URL>.vercel.app`:
-   - Inspect habitations on the GIS map (Joshimath, Raini, Khar) to verify live multi-hazard risk scores and relocation readiness.
-   - Check the bottom drawer for live relocation priorities.
-   - Navigate to `/red-zones` to review the statutory area discrepancy audit.
-   - Navigate to `/data-sources` to verify real-time data freshness telemetry.
+2. **Geospatial & Risk Intelligence**:
+   - `GET /api/habitations` → Returns Chamoli settlements with live multi-hazard risk scores, vulnerability vectors, and relocation urgency.
+   - `GET /api/hazard-zones/geojson` → GeoJSON feature collections for landslide, flood, and subsidence polygons.
+   - `GET /api/candidate-sites` → Safe resettlement sites evaluated for carrying capacity and slope safety.
+   - `GET /api/relocation-priorities` → Multi-criteria relocation prioritization queue.
