@@ -38,6 +38,8 @@ from app.models import (
     VulnerabilityProfile,
     RiskAssessment,
     RelocationAssessment,
+    EvidenceLayer,
+    HazardModel,
 )
 from app.services.risk.engine import RiskEngine
 from app.services.relocation.engine import RelocationEngine
@@ -925,6 +927,133 @@ VULNERABILITY_PROFILES_DATA = [
     {"habitation_id": "HAB-013", "population": 730, "households": 160, "children_share": 0.19, "elderly_share": 0.16, "disability_share": 0.03, "housing_vulnerability": 58.0, "population_density": 365.0, "healthcare_access_score": 50.0, "road_access_score": 60.0, "isolation_score": 52.0, "data_confidence": 80.0},
 ]
 
+EVIDENCE_LAYERS_DATA = [
+    {
+        "id": "EV-ELEV-SRTM30",
+        "name": "CartoSAT / SRTM 30m Digital Elevation Model",
+        "evidence_type": "ELEVATION",
+        "source_id": "DS-001",
+        "data_mode": "PUBLIC",
+        "representation_type": "RASTER",
+        "spatial_resolution": 30.0,
+        "derivation_method": "Direct satellite radar interferometry acquisition via ISRO / USGS",
+        "parent_layer_ids": [],
+        "quality_score": 92.0,
+    },
+    {
+        "id": "EV-SLOPE-METRIC",
+        "name": "Metric Slope Gradient (Degrees)",
+        "evidence_type": "SLOPE",
+        "source_id": "DS-001",
+        "data_mode": "MODELED",
+        "representation_type": "RASTER",
+        "spatial_resolution": 30.0,
+        "derivation_method": "Horn (1981) metric finite-difference gradient with latitude-adjusted cell metric conversion",
+        "parent_layer_ids": ["EV-ELEV-SRTM30"],
+        "quality_score": 88.0,
+    },
+    {
+        "id": "EV-ASPECT-METRIC",
+        "name": "Terrain Aspect (Compass Orientation)",
+        "evidence_type": "ASPECT",
+        "source_id": "DS-001",
+        "data_mode": "MODELED",
+        "representation_type": "RASTER",
+        "spatial_resolution": 30.0,
+        "derivation_method": "Zevenbergen-Thorne / Horn metric compass direction (0-360 degrees)",
+        "parent_layer_ids": ["EV-ELEV-SRTM30"],
+        "quality_score": 88.0,
+    },
+    {
+        "id": "EV-DIST-ROAD",
+        "name": "Proximity to Road Network",
+        "evidence_type": "DISTANCE_TO_ROAD",
+        "source_id": "DS-004",
+        "data_mode": "MODELED",
+        "representation_type": "VECTOR",
+        "spatial_resolution": 10.0,
+        "derivation_method": "PostGIS ST_Distance planar metric calculation from highway lines",
+        "parent_layer_ids": [],
+        "quality_score": 85.0,
+    },
+    {
+        "id": "EV-DIST-DRAINAGE",
+        "name": "Distance to Drainage / River Channels",
+        "evidence_type": "DISTANCE_TO_DRAINAGE",
+        "source_id": "DS-004",
+        "data_mode": "MODELED",
+        "representation_type": "VECTOR",
+        "spatial_resolution": 15.0,
+        "derivation_method": "Hydrological stream network vector buffer and proximity analysis",
+        "parent_layer_ids": [],
+        "quality_score": 85.0,
+    },
+    {
+        "id": "EV-DIST-FAULT",
+        "name": "Distance to Tectonic Fault Lineaments",
+        "evidence_type": "DISTANCE_TO_FAULT",
+        "source_id": "DS-001",
+        "data_mode": "MODELED",
+        "representation_type": "VECTOR",
+        "spatial_resolution": 50.0,
+        "derivation_method": "Geological Survey of India structural fault and thrust zone proximity",
+        "parent_layer_ids": [],
+        "quality_score": 80.0,
+    },
+]
+
+HAZARD_MODELS_DATA = [
+    {
+        "id": "MOD-AHP-001",
+        "name": "Analytical Hierarchy Process Multi-Hazard Model",
+        "hazard_type": "LANDSLIDE",
+        "model_type": "AHP",
+        "version": "1.0.0",
+        "status": "CONFIGURED",
+        "config": {
+            "evaluation_status": "CONFIGURED · CONSISTENT",
+            "consistency_ratio": 0.042,
+            "consistency_acceptable": True,
+            "saaty_scale_max": 9,
+            "scientific_validation": "UNVALIDATED / PENDING_FIELD_INVENTORY",
+            "weights": {
+                "slope": 0.35,
+                "lithology": 0.25,
+                "drainage": 0.15,
+                "land_cover": 0.15,
+                "aspect": 0.10,
+            },
+        },
+    },
+    {
+        "id": "MOD-FR-001",
+        "name": "Frequency Ratio Landslide Susceptibility Model",
+        "hazard_type": "LANDSLIDE",
+        "model_type": "FREQUENCY_RATIO",
+        "version": "1.0.0",
+        "status": "DEMO",
+        "config": {
+            "framework_status": "FRAMEWORK READY",
+            "validation_status": "DEMO / NOT VALIDATED",
+            "inventory_source": "Chamoli Historical Landslide Events (DEMO)",
+        },
+    },
+    {
+        "id": "MOD-RF-001",
+        "name": "Random Forest Susceptibility Pipeline",
+        "hazard_type": "LANDSLIDE",
+        "model_type": "RANDOM_FOREST",
+        "version": "1.0.0",
+        "status": "UNTRAINED",
+        "config": {
+            "production_status": "UNTRAINED / INSUFFICIENT_REAL_DATA",
+            "spatial_split": "BLOCK_HOLDOUT",
+            "validation_status": "UNTRAINED / INSUFFICIENT_REAL_DATA",
+        },
+    },
+]
+
+
 
 def seed_database(db=None) -> dict[str, int]:
     """Run idempotent seed data insertion."""
@@ -1233,6 +1362,41 @@ def seed_database(db=None) -> dict[str, int]:
             if not existing_rel:
                 relocation_engine.assess_habitation(h["id"])
                 counts["relocation_assessments"] += 1
+
+        # 12. Evidence Layers (Provenance & Derivative Layers)
+        for el_data in EVIDENCE_LAYERS_DATA:
+            existing_el = db.query(EvidenceLayer).filter(EvidenceLayer.id == el_data["id"]).first()
+            if not existing_el:
+                el_obj = EvidenceLayer(
+                    id=el_data["id"],
+                    name=el_data["name"],
+                    evidence_type=el_data["evidence_type"],
+                    source_id=el_data.get("source_id"),
+                    data_mode=el_data["data_mode"],
+                    representation_type=el_data["representation_type"],
+                    spatial_resolution=el_data.get("spatial_resolution"),
+                    derivation_method=el_data.get("derivation_method"),
+                    parent_layer_ids=el_data.get("parent_layer_ids", []),
+                    quality_score=el_data.get("quality_score"),
+                )
+                db.add(el_obj)
+                counts["evidence_layers"] = counts.get("evidence_layers", 0) + 1
+
+        # 13. Hazard Models Registry
+        for hm_data in HAZARD_MODELS_DATA:
+            existing_hm = db.query(HazardModel).filter(HazardModel.id == hm_data["id"]).first()
+            if not existing_hm:
+                hm_obj = HazardModel(
+                    id=hm_data["id"],
+                    name=hm_data["name"],
+                    hazard_type=hm_data["hazard_type"],
+                    model_type=hm_data["model_type"],
+                    version=hm_data["version"],
+                    status=hm_data["status"],
+                    config=hm_data["config"],
+                )
+                db.add(hm_obj)
+                counts["hazard_models"] = counts.get("hazard_models", 0) + 1
 
         db.commit()
         logger.info(f"Seed completed successfully: {counts}")

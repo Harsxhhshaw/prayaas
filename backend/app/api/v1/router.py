@@ -15,6 +15,10 @@ from app.api.v1.data_sources import router as data_sources_router
 from app.api.v1.disaster_events import router as disaster_events_router
 from app.api.v1.ingestion import router as ingestion_router
 from app.api.v1.analysis import router as analysis_router
+from app.api.v1.candidate_discovery import router as candidate_discovery_router
+from app.api.v1.optimization import router as optimization_router
+from app.api.v1.digital_twin import router as digital_twin_router
+from app.api.v1.governance import router as governance_router
 
 api_router = APIRouter()
 
@@ -32,6 +36,11 @@ api_router.include_router(data_sources_router)
 api_router.include_router(disaster_events_router)
 api_router.include_router(ingestion_router)
 api_router.include_router(analysis_router)
+api_router.include_router(candidate_discovery_router)
+api_router.include_router(optimization_router)
+api_router.include_router(digital_twin_router)
+api_router.include_router(governance_router)
 
 # Compatibility alias
 v1_router = api_router
+

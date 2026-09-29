@@ -16,6 +16,8 @@ dependencies = [
     "shapely>=2.0,<3",
     "geojson-pydantic>=1.1,<2",
     "orjson>=3.10,<4",
+    "scikit-learn>=1.4,<2",
+    "scipy>=1.10,<2",
 ]
 
 [project.optional-dependencies]

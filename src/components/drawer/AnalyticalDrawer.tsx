@@ -372,8 +372,9 @@ export function AnalyticalDrawer({ onSelectHabitation, selectedHabitationId }: A
               <div className="bg-panel-header p-2.5 rounded-[2px] border border-border-default space-y-1">
                 <div className="text-[10px] text-text-muted uppercase font-bold">BHUVAN DIGITAL ELEVATION MODEL</div>
                 <div className="text-text-primary">Cartosat-1 10m Stereo DEM</div>
-                <div className="text-gis-green">Slope Stability & Flow Direction Models Calibrated</div>
+                <div className="text-gis-green">Slope Stability & Flow Direction Models Configured</div>
                 <div className="text-[10px] text-text-muted">Vertical Accuracy: ±1.8m</div>
+
               </div>
             </div>
           )}

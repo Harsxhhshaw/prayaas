@@ -19,8 +19,9 @@ import {
   Minus,
   RotateCcw,
 } from 'lucide-react';
-import type { MapLayer, Habitation, RedZone, CandidateRelocationSite, InfrastructurePoint } from '../../types';
+import type { MapLayer, Habitation, RedZone, CandidateRelocationSite, InfrastructurePoint, CandidateParcelItem } from '../../types';
 import { habitations, redZones, candidateSites, infrastructurePoints, defaultMapLayers } from '../../data/mockData';
+import { api } from '../../lib/api';
 import { MapLayerControl } from './MapLayerControl';
 import type { SelectedFeature } from '../inspector/FeatureInspector';
 
@@ -145,18 +146,30 @@ export function CommandCentreMap({
 
   const isLayerEnabled = (id: string) => layers.find((l) => l.id === id)?.enabled ?? false;
 
-  const activeBasemap = basemapOptions[currentBasemap];
+  const [candidateParcels, setCandidateParcels] = useState<CandidateParcelItem[]>([]);
+
+  useEffect(() => {
+    api.getCandidateParcels().then((res) => {
+      if (res.data?.items && res.data.items.length > 0) {
+        setCandidateParcels(res.data.items);
+      }
+    });
+  }, []);
 
   const selectedId =
     selectedFeature?.type === 'HABITATION'
       ? selectedFeature.data.id
       : selectedFeature?.type === 'CANDIDATE_SITE'
       ? selectedFeature.data.id
+      : selectedFeature?.type === 'CANDIDATE_PARCEL'
+      ? selectedFeature.data.id
       : selectedFeature?.type === 'RED_ZONE'
       ? selectedFeature.data.id
       : selectedFeature?.type === 'INFRASTRUCTURE'
       ? selectedFeature.data.id
       : null;
+
+  const activeBasemap = basemapOptions[currentBasemap];
 
   return (
     <div className="relative w-full h-full bg-workspace select-none overflow-hidden">
@@ -249,6 +262,112 @@ export function CommandCentreMap({
                     <span className="text-gis-green font-bold block">{site.name}</span>
                     <span className="text-text-muted">
                       Suitability: {site.suitabilityScore}/100 • Capacity: {site.carryingCapacity.toLocaleString()}
+                    </span>
+                  </div>
+                </Tooltip>
+              </Polygon>
+            );
+          })}
+
+        {/* ===================================================================
+            2a-ii. FEASIBLE LAND MASK (Subtle continuous mask of land surviving exclusions)
+           =================================================================== */}
+        {isLayerEnabled('feasible-land') && (
+          <>
+            <Polygon
+              positions={[
+                [30.34, 79.28],
+                [30.42, 79.32],
+                [30.46, 79.44],
+                [30.56, 79.56],
+                [30.54, 79.62],
+                [30.47, 79.60],
+                [30.38, 79.40],
+                [30.32, 79.33],
+              ]}
+              pathOptions={{
+                color: '#059669',
+                fillColor: '#047857',
+                fillOpacity: 0.08 * opacity,
+                weight: 1.0,
+                dashArray: '4 4',
+              }}
+            >
+              <Tooltip direction="top" opacity={0.95} sticky>
+                <div className="font-mono text-[10px] leading-tight">
+                  <span className="text-emerald-400 font-bold block">Feasible Land Mask (Chamoli Corridor)</span>
+                  <span className="text-text-muted">Slope &le; 25° • Hazard buffer &gt; 300m • Connected feasible terrain</span>
+                </div>
+              </Tooltip>
+            </Polygon>
+            <Polygon
+              positions={[
+                [30.27, 78.96],
+                [30.33, 79.01],
+                [30.41, 79.08],
+                [30.39, 79.14],
+                [30.30, 79.05],
+                [30.26, 78.99],
+              ]}
+              pathOptions={{
+                color: '#059669',
+                fillColor: '#047857',
+                fillOpacity: 0.08 * opacity,
+                weight: 1.0,
+                dashArray: '4 4',
+              }}
+            >
+              <Tooltip direction="top" opacity={0.95} sticky>
+                <div className="font-mono text-[10px] leading-tight">
+                  <span className="text-emerald-400 font-bold block">Feasible Land Mask (Mandakini Valley)</span>
+                  <span className="text-text-muted">Slope &le; 25° • Hard exclusions satisfied</span>
+                </div>
+              </Tooltip>
+            </Polygon>
+          </>
+        )}
+
+        {/* ===================================================================
+            2b. MODELED CANDIDATE PARCELS (Cyan outline, distinct from benchmark pins)
+           =================================================================== */}
+        {isLayerEnabled('candidate-parcels') &&
+          candidateParcels.map((parcel) => {
+            const isSelected = selectedId === parcel.id;
+            const c = parcel.centroid;
+            // Approximate polygon boundaries from centroid and metric area
+            const span = Math.max(0.002, Math.sqrt(Math.max(1.0, parcel.area_hectares) * 10000) / 111132 / 2);
+            const positions: [number, number][] = [
+              [c.lat - span, c.lng - span * 1.1],
+              [c.lat + span, c.lng - span * 0.9],
+              [c.lat + span * 1.1, c.lng + span * 0.8],
+              [c.lat - span * 0.9, c.lng + span],
+            ];
+
+            return (
+              <Polygon
+                key={parcel.id}
+                positions={positions}
+                pathOptions={{
+                  color: isSelected ? '#ffffff' : '#0891b2',
+                  fillColor: '#06b6d4',
+                  fillOpacity: isSelected ? 0.18 : 0.08 * opacity,
+                  weight: isSelected ? 2.0 : 1.2,
+                  dashArray: isSelected ? undefined : '3 3',
+                }}
+                eventHandlers={{
+                  click: () => onSelectFeature({ type: 'CANDIDATE_PARCEL', data: parcel }),
+                }}
+              >
+                <Tooltip direction="top" opacity={0.95} sticky>
+                  <div className="font-mono text-[11px] leading-tight">
+                    <span className="text-cyan-400 font-bold block">
+                      Discovered Parcel #{parcel.rank} ({parcel.area_hectares.toFixed(1)} ha)
+                    </span>
+                    <span className="text-text-muted">
+                      Suitability: {parcel.suitability_score.toFixed(1)}/100 • Robustness: {parcel.robustness_level}
+                    </span>
+                    <span className="text-[10px] text-amber-300 block mt-0.5">
+                      MODELED PARCEL • Field Verification Required
                     </span>
                   </div>
                 </Tooltip>

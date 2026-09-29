@@ -180,6 +180,9 @@ export function MapLayerControl({
                   {layer.id === 'candidate-sites' && (
                     <span className="w-2 h-2 border border-gis-green bg-gis-green/30" />
                   )}
+                  {layer.id === 'candidate-parcels' && (
+                    <span className="w-2 h-2 border border-cyan-400 bg-cyan-400/40" />
+                  )}
                 </label>
               ))}
             </div>

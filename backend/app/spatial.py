@@ -124,3 +124,11 @@ def to_geojson_polygon(geom) -> dict[str, Any]:
         "type": "Polygon",
         "coordinates": [coords],
     }
+
+
+def to_geojson_geometry(geom) -> dict[str, Any]:
+    """Convert any PostGIS or Shapely geometry (Polygon, MultiPolygon, Point) into GeoJSON."""
+    from shapely.geometry import mapping
+    shape = to_shape(geom) if hasattr(geom, "data") else geom
+    return mapping(shape)
+

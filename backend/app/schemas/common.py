@@ -14,8 +14,10 @@ class GeoPointResponse(BaseModel):
 
 class HazardScoreResponse(BaseModel):
     type: str
-    score: int
+    score: int | None = None
     label: str
+    status: str = "VALUE"
+
 
 
 class RiskHistoryEntryResponse(BaseModel):

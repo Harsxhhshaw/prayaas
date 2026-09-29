@@ -290,3 +290,15 @@ def client(seeded_mock_objects) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def db():
+    """Provides a SQLAlchemy session connected to the real PostGIS database."""
+    from app.database import SessionLocal
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+

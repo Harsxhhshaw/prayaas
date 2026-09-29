@@ -798,7 +798,9 @@ export const defaultMapLayers: MapLayer[] = [
   { id: 'vulnerability', name: 'Vulnerability', group: 'HABITATION', enabled: false, description: 'Social vulnerability index' },
   { id: 'infrastructure', name: 'Infrastructure', group: 'HABITATION', enabled: true, description: 'Critical infrastructure locations' },
   // Relocation
-  { id: 'candidate-sites', name: 'Candidate Sites', group: 'RELOCATION', enabled: true, description: 'Identified relocation sites' },
+  { id: 'candidate-sites', name: 'Candidate Sites (Benchmark)', group: 'RELOCATION', enabled: true, description: 'Pre-seeded relocation benchmark sites' },
+  { id: 'candidate-parcels', name: 'Discovered Parcels (Modeled)', group: 'RELOCATION', enabled: true, description: 'GIS-discovered candidate relocation polygons' },
+  { id: 'feasible-land', name: 'Feasible Land Mask', group: 'RELOCATION', enabled: false, description: 'Continuous mask of land surviving hard exclusions' },
   { id: 'excluded-land', name: 'Excluded Land', group: 'RELOCATION', enabled: false, description: 'Areas excluded from relocation' },
   { id: 'carrying-capacity', name: 'Carrying Capacity', group: 'RELOCATION', enabled: false, description: 'Site carrying capacity overlay' },
   // Terrain

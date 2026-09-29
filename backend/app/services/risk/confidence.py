@@ -1,4 +1,9 @@
-"""Independent confidence evaluation engine for multi-hazard risk assessment."""
+"""Independent assessment and data confidence evaluation engine for multi-hazard risk.
+
+Separates DATA / ASSESSMENT CONFIDENCE (completeness, quality, freshness, field verification)
+from MODEL PERFORMANCE (AUC, spatial holdout, validation metrics).
+Penalizes confidence when core components are missing or when independent models disagree.
+"""
 
 from __future__ import annotations
 
@@ -13,16 +18,19 @@ def calculate_risk_confidence(
     hazard_scores_count: int,
     risk_history_count: int,
     is_demographics_complete: bool,
+    missing_components: list[str] | None = None,
+    model_agreement_penalty: float = 0.0,
+    model_agreement_reason: str | None = None,
 ) -> tuple[float, list[str], str]:
-    """Calculates an independent 0-100 confidence score and explains the rationale.
+    """Calculates an independent 0-100 DATA / ASSESSMENT CONFIDENCE score and rationale.
 
     Returns:
         (confidence_score, reason_codes, rationale_text)
     """
     base_score = 50.0
-    penalties = []
-    bonuses = []
-    reasons = []
+    penalties: list[tuple[str, float]] = []
+    bonuses: list[tuple[str, float]] = []
+    reasons: list[str] = []
 
     # 1. Vulnerability profile confidence
     if has_vulnerability_profile:
@@ -80,12 +88,29 @@ def calculate_risk_confidence(
         penalties.append(("Incomplete population / household records", 8.0))
         reasons.append("DEMOGRAPHICS_INCOMPLETE")
 
+    # 6. Missing analytical components penalty
+    if missing_components:
+        reasons.append("MISSING_ANALYTICAL_COMPONENTS")
+        for comp in missing_components:
+            p_val = 7.5
+            penalties.append((f"Missing analytical component: {comp}", p_val))
+            reasons.append(f"MISSING_COMPONENT_{comp.upper()}")
+
+
+    # 7. Model disagreement penalty
+    if model_agreement_penalty > 0:
+        penalties.append(("Methodological divergence across independent models", model_agreement_penalty))
+        if model_agreement_reason:
+            reasons.append(model_agreement_reason)
+        else:
+            reasons.append("MODEL_DISAGREEMENT_PENALTY")
+
     total_bonuses = sum(val for _, val in bonuses)
     total_penalties = sum(val for _, val in penalties)
     final_score = max(10.0, min(100.0, base_score + total_bonuses - total_penalties))
 
     rationale_lines = [
-        f"Confidence Score: {final_score:.1f}/100",
+        f"Data / Assessment Confidence: {final_score:.1f}/100",
         "Positive factors: " + (", ".join(f"{txt} (+{val})" for txt, val in bonuses) if bonuses else "None"),
         "Deductions: " + (", ".join(f"{txt} (-{val})" for txt, val in penalties) if penalties else "None"),
     ]

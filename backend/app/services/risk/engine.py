@@ -1,4 +1,14 @@
-"""Deterministic Multi-Hazard Risk and Red Zone Classification Engine."""
+"""Deterministic Multi-Hazard Risk and Red Zone Classification Engine.
+
+Implements:
+- Three-state analytical semantics (VALUE, UNKNOWN, NOT_APPLICABLE)
+- Available-weight missing data normalization (missing inputs NEVER reduce risk)
+- Methodological model agreement evaluation (AHP vs Frequency Ratio)
+- Permanent Red downgrade guard (confidence < 70 -> CONDITIONAL_RED)
+- Dynamic Red safeguard (weather surge cannot produce PERMANENT_RED without high structural risk)
+- Exposed dimensional Habitation Sustainability Index (HSI)
+- Accurate input and source snapshots
+"""
 
 from __future__ import annotations
 
@@ -8,12 +18,19 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.models.enums import RedZoneClassification, RiskClassification
+from app.models.enums import AnalyticalStatus, RedZoneClassification, RiskClassification
 from app.models.habitation import Habitation
 from app.models.ingestion import EnvironmentalObservation
 from app.models.risk import RiskAssessment, VulnerabilityProfile
+from app.services.hazard_models.agreement import ModelAgreementEngine
+from app.services.hazard_models.ahp import AHPSusceptibilityModel
+from app.services.hazard_models.frequency_ratio import FrequencyRatioModel
 from app.services.risk.config import DEFAULT_RISK_CONFIG, RiskEngineConfig
 from app.services.risk.confidence import calculate_risk_confidence
+from app.services.risk.semantics import (
+    calculate_available_weighted_score,
+    normalize_hazard_scores,
+)
 
 
 def calculate_sustainability_index(
@@ -22,18 +39,62 @@ def calculate_sustainability_index(
     nearest_hospital_km: float,
     baseline_hazard: float,
     vulnerability_score: float,
-) -> float:
-    """Calculates Habitation Sustainability Index (HSI, 0-100).
+    nearest_school_km: float | None = None,
+    history_score: float | None = None,
+    return_details: bool = False,
+) -> float | tuple[float, float, dict[str, Any]]:
+    """Calculates Habitation Sustainability Index (HSI, 0-100) and optionally exposes separate dimensions.
 
-    Low HSI (< 35) indicates that in-situ engineering stabilization is economically/physically infeasible.
+    Returns:
+        float if return_details is False, else (sustainability_score, sustainability_confidence, dimensions_breakdown)
     """
-    # Terrain & isolation penalty
-    terrain_penalty = min(30.0, (elevation / 3000.0) * 20.0 + (nearest_road_km * 2.0))
-    hazard_penalty = (baseline_hazard / 100.0) * 45.0
-    isolation_penalty = min(25.0, (nearest_hospital_km / 20.0) * 25.0)
+    # 1. Evaluate dimensional scores (0-100, 100 = most sustainable/safe)
+    physical_safety = max(0.0, min(100.0, 100.0 - (baseline_hazard * 0.95)))
+    road_reliability = max(0.0, min(100.0, 100.0 - (nearest_road_km * 12.0)))
+    health_accessibility = max(0.0, min(100.0, 100.0 - (nearest_hospital_km * 3.5)))
+    education_access = max(0.0, min(100.0, 100.0 - (nearest_school_km * 5.0))) if nearest_school_km is not None else None
+    infra_resilience = max(0.0, min(100.0, 100.0 - (vulnerability_score * 0.8)))
+    water_security = None  # UNKNOWN: genuine data limitation in un-surveyed habitations
+    historical_disruption = max(0.0, min(100.0, 100.0 - (history_score * 0.8))) if history_score is not None else None
 
-    hsi = 100.0 - (terrain_penalty + hazard_penalty + isolation_penalty)
-    return max(5.0, min(95.0, round(hsi, 1)))
+    dimensions = {
+        "physical_safety": physical_safety,
+        "road_reliability": road_reliability,
+        "health_accessibility": health_accessibility,
+        "education_access": education_access,
+        "infrastructure_resilience": infra_resilience,
+        "water_security": water_security,
+        "historical_disruption": historical_disruption,
+    }
+
+    dim_weights = {
+        "physical_safety": 0.35,
+        "road_reliability": 0.20,
+        "health_accessibility": 0.15,
+        "education_access": 0.10,
+        "infrastructure_resilience": 0.10,
+        "water_security": 0.05,
+        "historical_disruption": 0.05,
+    }
+
+    hsi_score, avail_w, missing = calculate_available_weighted_score(dimensions, dim_weights)
+    hsi_final = hsi_score if hsi_score is not None else 50.0
+
+    # Confidence based on available dimensions
+    hsi_confidence = round(avail_w * 100.0, 1)
+
+    breakdown = {
+        k: {
+            "value": round(v, 1) if v is not None else None,
+            "status": AnalyticalStatus.VALUE.value if v is not None else AnalyticalStatus.UNKNOWN.value,
+        }
+        for k, v in dimensions.items()
+    }
+
+    final_score = round(hsi_final, 1)
+    if return_details:
+        return final_score, hsi_confidence, breakdown
+    return final_score
 
 
 class RiskEngine:
@@ -68,13 +129,19 @@ class RiskEngine:
         rainfall_24h = obs_dict.get("RAINFALL_24H").value if "RAINFALL_24H" in obs_dict else 15.0
         soil_moisture = obs_dict.get("SOIL_MOISTURE_0_7CM").value if "SOIL_MOISTURE_0_7CM" in obs_dict else 0.25
 
-        # ── 3. Multi-Hazard Aggregation ──
-        hazard_list = hab.hazard_scores if isinstance(hab.hazard_scores, list) else []
+        # ── 3. Multi-Hazard Aggregation with Three-State Semantics ──
+        hazard_list = normalize_hazard_scores(hab.hazard_scores, district=hab.district, state=hab.state)
         dominant_hazard = "LANDSLIDE"
         reason_codes: list[str] = []
 
-        if hazard_list:
-            sorted_hazards = sorted(hazard_list, key=lambda x: x.get("score", 0), reverse=True)
+        # Filter only assessed hazards with real VALUE status (exclude UNKNOWN and NOT_APPLICABLE)
+        active_hazards = [
+            h for h in hazard_list
+            if h.get("status") == AnalyticalStatus.VALUE.value and h.get("score") is not None
+        ]
+
+        if active_hazards:
+            sorted_hazards = sorted(active_hazards, key=lambda x: x.get("score", 0), reverse=True)
             max_hazard = float(sorted_hazards[0].get("score", hab.risk_score))
             dominant_hazard = sorted_hazards[0].get("type", "LANDSLIDE")
 
@@ -91,7 +158,6 @@ class RiskEngine:
         # Dynamic hazard surge from precipitation & soil moisture
         dynamic_hazard = baseline_hazard
         if rainfall_24h >= 65.0:
-            # Extreme monsoon / cloudburst precipitation surge
             excess = rainfall_24h - 65.0
             dynamic_hazard = min(100.0, baseline_hazard + (excess * 0.5) + 15.0)
             reason_codes.append("MONSOON_PRECIPITATION_CRITICAL")
@@ -109,7 +175,6 @@ class RiskEngine:
         )
 
         # ── 4. Exposure Score ──
-        # Factors: population size, household density, elevation relief
         pop = hab.population
         pop_density = v_profile.population_density if v_profile else (pop / 2.0)
         exposure_raw = min(100.0, (pop / 15.0) + (pop_density * 0.3) + 20.0)
@@ -130,13 +195,11 @@ class RiskEngine:
             if v_profile.housing_vulnerability > 70.0:
                 reason_codes.append("KUCCHA_HOUSING_VULNERABILITY")
         else:
-            # Demographics fallback
             vulnerability_score = float(hab.vulnerability_score or 45.0)
 
         vulnerability_score = round(max(10.0, min(100.0, vulnerability_score)), 1)
 
         # ── 6. Adaptive Capacity Deficit ──
-        # Road access, hospital distance, school
         road_km = hab.nearest_road
         hosp_km = hab.nearest_hospital
         school_km = hab.nearest_school
@@ -149,15 +212,15 @@ class RiskEngine:
         if hosp_km > 15.0:
             reason_codes.append("HEALTHCARE_ACCESS_CRITICAL")
 
-        # ── 7. History Score ──
+        # ── 7. History Score (UNKNOWN if no historical records exist) ──
         history_list = hab.risk_history if isinstance(hab.risk_history, list) else []
         if history_list:
             past_scores = [float(h.get("score", 50)) for h in history_list]
             history_score = round(sum(past_scores) / len(past_scores), 1)
         else:
-            history_score = round(baseline_hazard * 0.8, 1)
+            history_score = None  # UNKNOWN: missing data must NOT be fabricated
 
-        # ── 8. Trend Score ──
+        # ── 8. Trend Score (UNKNOWN if < 2 historical points) ──
         if len(history_list) >= 2:
             first_score = float(history_list[0].get("score", 50))
             last_score = float(history_list[-1].get("score", 50))
@@ -166,11 +229,11 @@ class RiskEngine:
             if diff > 10.0:
                 reason_codes.append("ESCALATING_RISK_TRAJECTORY")
         else:
-            trend_score = 50.0
+            trend_score = None  # UNKNOWN: insufficient time-series
 
-        # ── 9. Compound Hazard Escalation ──
+        # ── 9. Compound Hazard Escalation (Capped at MAX_COMPOUND_ADJUSTMENT = 15.0) ──
         compound_adjustment = 0.0
-        if hazard_list and len(hazard_list) > 1:
+        if active_hazards and len(active_hazards) > 1:
             severe_secondary = [
                 h for h in sorted_hazards[1:] if float(h.get("score", 0)) >= 50.0
             ]
@@ -181,7 +244,7 @@ class RiskEngine:
                 )
                 reason_codes.append("MULTI_HAZARD_COMPOUND_AMPLIFICATION")
 
-        # ── 10. Missing Data Re-weighting ──
+        # ── 10. Missing Data Re-weighting (Missing inputs NEVER lower risk) ──
         weights = {
             "hazard": self.config.HAZARD_WEIGHT,
             "exposure": self.config.EXPOSURE_WEIGHT,
@@ -190,7 +253,7 @@ class RiskEngine:
             "history": self.config.HISTORY_WEIGHT,
             "trend": self.config.TREND_WEIGHT,
         }
-        values = {
+        values: dict[str, float | None] = {
             "hazard": blended_hazard,
             "exposure": exposure_score,
             "vulnerability": vulnerability_score,
@@ -199,9 +262,8 @@ class RiskEngine:
             "trend": trend_score,
         }
 
-        # Normalize weights
-        total_w = sum(weights.values())
-        weighted_sum = sum((w / total_w) * values[k] for k, w in weights.items())
+        weighted_score, avail_w_sum, missing_components = calculate_available_weighted_score(values, weights)
+        weighted_sum = weighted_score if weighted_score is not None else blended_hazard
 
         # Baseline structural risk (independent of real-time weather)
         baseline_structural_risk = round(
@@ -215,19 +277,48 @@ class RiskEngine:
         current_dynamic_risk = round(min(100.0, weighted_sum + compound_adjustment), 1)
         composite_risk_score = current_dynamic_risk
 
-        # ── 11. Confidence Evaluation ──
+        # ── 11. Multi-Method Model Agreement Evaluation ──
+        # AHP susceptibility evaluation
+        local_relief_slope = min(65.0, max(5.0, (hab.elevation * 0.015 * 0.4) + 18.0))
+        ahp_model = AHPSusceptibilityModel()
+        ahp_res = ahp_model.evaluate({
+            "slope": local_relief_slope,
+            "rainfall": rainfall_24h,
+            "road_distance": hab.nearest_road,
+        })
+
+        # Frequency Ratio susceptibility evaluation
+        fr_model = FrequencyRatioModel()
+        fr_res = fr_model.predict_susceptibility(
+            slope_deg=local_relief_slope,
+            rainfall_mm=rainfall_24h,
+        )
+
+        agreement_engine = ModelAgreementEngine()
+        agreement_eval = agreement_engine.evaluate_agreement({
+            "AHP": ahp_res.get("score"),
+            "Frequency Ratio": fr_res.get("score"),
+        })
+
+        # ── 12. Assessment Confidence Evaluation ──
         confidence_score, conf_reasons, conf_rationale = calculate_risk_confidence(
             has_vulnerability_profile=v_profile is not None,
             vulnerability_profile_mode=v_profile.data_mode if v_profile else None,
             has_environmental_observations=len(recent_obs) > 0,
             observation_mode=recent_obs[0].data_mode if recent_obs else None,
-            hazard_scores_count=len(hazard_list),
+            hazard_scores_count=len(active_hazards),
             risk_history_count=len(history_list),
             is_demographics_complete=hab.population > 0 and hab.households > 0,
+            missing_components=missing_components,
+            model_agreement_penalty=agreement_eval["confidence_penalty"],
+            model_agreement_reason=agreement_eval["reason_codes"][0] if agreement_eval["confidence_penalty"] > 0 else None,
         )
         reason_codes.extend(conf_reasons)
+        reason_codes.extend(agreement_eval["reason_codes"])
 
-        # ── 12. Red Zone Classification with Downgrade Guard ──
+        # ── 13. Red Zone Classification with Strict Safety Guards ──
+        # Guard 1: High current weather surge does NOT create PERMANENT_RED
+        # Guard 2: High structural risk requires minimum confidence >= 70 to become PERMANENT_RED
         if (
             composite_risk_score >= self.config.PERMANENT_RED_RISK_THRESHOLD
             and baseline_structural_risk >= self.config.PERMANENT_RED_STRUCTURAL_THRESHOLD
@@ -238,11 +329,13 @@ class RiskEngine:
             else:
                 # MANDATORY DOWNGRADE GUARD
                 risk_classification = RedZoneClassification.CONDITIONAL_RED.value
-                reason_codes.append("LOW_CONFIDENCE_VERIFICATION_REQUIRED")
+                reason_codes.append("LOW_CONFIDENCE_FIELD_VERIFICATION_REQUIRED")
         elif (
-            dynamic_hazard >= self.config.DYNAMIC_RED_SURGE_THRESHOLD
+            (dynamic_hazard >= self.config.DYNAMIC_RED_SURGE_THRESHOLD or current_dynamic_risk >= self.config.DYNAMIC_RED_SURGE_THRESHOLD)
             and rainfall_24h >= 65.0
+            and baseline_structural_risk < self.config.PERMANENT_RED_STRUCTURAL_THRESHOLD
         ):
+            # Dynamic Red safeguard: weather escalation creates DYNAMIC_RED, not permanent relocation
             risk_classification = RedZoneClassification.DYNAMIC_RED.value
             reason_codes.append("DYNAMIC_RED_PRECIPITATION_ALERT")
         elif composite_risk_score >= self.config.CONDITIONAL_RED_RISK_THRESHOLD:
@@ -253,27 +346,54 @@ class RiskEngine:
         else:
             risk_classification = RedZoneClassification.ACCEPTABLE.value
 
-        # ── 13. Habitation Sustainability Index ──
-        sustainability_index = calculate_sustainability_index(
+        # ── 14. Habitation Sustainability Index & Dimensional Breakdown ──
+        sustainability_index, hsi_conf, hsi_breakdown = calculate_sustainability_index(
             elevation=hab.elevation,
             nearest_road_km=hab.nearest_road,
             nearest_hospital_km=hab.nearest_hospital,
             baseline_hazard=baseline_hazard,
             vulnerability_score=vulnerability_score,
+            nearest_school_km=hab.nearest_school,
+            history_score=history_score,
+            return_details=True,
         )
         if sustainability_index < self.config.CRITICAL_UNSUSTAINABLE_HSI:
             reason_codes.append("IN_SITU_MITIGATION_INFEASIBLE")
 
-        # ── 14. Deterministic Explanation Narrative ──
+        # ── 15. Deterministic Explanation Narrative ──
         explanation = (
             f"PRAYAAS-RISK-1.0 Assessment for {hab.name}: Composite Risk = {composite_risk_score:.1f}/100 "
             f"({risk_classification}). Dominant hazard is {dominant_hazard} (Baseline Hazard: {baseline_hazard:.1f}, "
             f"Dynamic: {dynamic_hazard:.1f}). Exposure: {exposure_score:.1f}, Social Vulnerability: {vulnerability_score:.1f}, "
             f"Adaptive Deficit: {adaptive_capacity_deficit_score:.1f}. Compound Adjustment: +{compound_adjustment:.1f}. "
+            f"Model Agreement: {agreement_eval['agreement_level']} (Score: {agreement_eval['agreement_score']:.1f}). "
             f"Habitation Sustainability Index: {sustainability_index:.1f}/100. Confidence: {confidence_score:.1f}%."
         )
 
-        # ── 15. Create and persist RiskAssessment ──
+        # ── 16. Accurate Snapshots ──
+        input_snapshot = {
+            "population": hab.population,
+            "households": hab.households,
+            "elevation": hab.elevation,
+            "nearest_road": hab.nearest_road,
+            "nearest_hospital": hab.nearest_hospital,
+            "nearest_school": hab.nearest_school,
+            "rainfall_24h": rainfall_24h,
+            "soil_moisture": soil_moisture,
+            "missing_components": missing_components,
+            "available_weight_sum": avail_w_sum,
+            "model_scores": agreement_eval["scores"],
+            "model_agreement_level": agreement_eval["agreement_level"],
+            "sustainability_dimensions": hsi_breakdown,
+        }
+
+        source_snapshot = {
+            "vulnerability_mode": v_profile.data_mode if v_profile else "DEFAULT",
+            "weather_observations_used": len(recent_obs),
+            "hazard_evidence_records": len(active_hazards),
+            "risk_history_records": len(history_list),
+        }
+
         now = datetime.now(timezone.utc)
         assessment = RiskAssessment(
             id=str(uuid4()),
@@ -287,8 +407,8 @@ class RiskEngine:
             vulnerability_score=vulnerability_score,
             adaptive_capacity_score=adaptive_capacity_score,
             adaptive_capacity_deficit_score=adaptive_capacity_deficit_score,
-            history_score=history_score,
-            trend_score=trend_score,
+            history_score=history_score or 0.0,
+            trend_score=trend_score or 50.0,
             compound_hazard_adjustment=round(compound_adjustment, 1),
             baseline_structural_risk=baseline_structural_risk,
             current_dynamic_risk=current_dynamic_risk,
@@ -298,19 +418,8 @@ class RiskEngine:
             dominant_hazard=dominant_hazard,
             sustainability_index=sustainability_index,
             reason_codes=list(set(reason_codes)),
-            input_snapshot={
-                "population": hab.population,
-                "households": hab.households,
-                "elevation": hab.elevation,
-                "nearest_road": hab.nearest_road,
-                "nearest_hospital": hab.nearest_hospital,
-                "rainfall_24h": rainfall_24h,
-                "soil_moisture": soil_moisture,
-            },
-            source_snapshot={
-                "vulnerability_mode": v_profile.data_mode if v_profile else "DEFAULT",
-                "weather_observations": len(recent_obs),
-            },
+            input_snapshot=input_snapshot,
+            source_snapshot=source_snapshot,
             explanation=explanation,
             calculated_at=now,
         )

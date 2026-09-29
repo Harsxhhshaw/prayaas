@@ -39,7 +39,8 @@ export function DigitalTwin() {
           </div>
           <div className="text-sm font-bold text-text-primary">Cartosat 10m High-Res DEM</div>
           <div className="text-[11px] text-text-secondary leading-normal">
-            Slope gradient calculation active. Triangular Irregular Network (TIN) calibrated for Chamoli drainage basin.
+            Slope gradient calculation active. Triangular Irregular Network (TIN) configured for Chamoli drainage basin.
+
           </div>
         </div>
 

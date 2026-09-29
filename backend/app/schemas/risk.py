@@ -56,6 +56,17 @@ class RiskAssessmentResponse(BaseModel):
     calculated_at: str
 
 
+class RiskExplanationSections(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    primary_drivers: list[str] = Field(default_factory=list)
+    dynamic_factors: list[str] = Field(default_factory=list)
+    protective_factors: list[str] = Field(default_factory=list)
+    model_agreement: dict[str, Any] = Field(default_factory=dict)
+    data_limitations: list[str] = Field(default_factory=list)
+    what_would_improve_confidence: list[str] = Field(default_factory=list)
+
+
 class RiskAssessmentExplanationResponse(BaseModel):
     id: str
     habitation_id: str
@@ -74,6 +85,7 @@ class RiskAssessmentExplanationResponse(BaseModel):
     sources_used: list[dict[str, Any]]
     confidence_rationale: str
     calculated_at: str
+    sections: RiskExplanationSections | None = None
 
 
 class RiskAssessmentHistoryItem(BaseModel):

@@ -10,6 +10,7 @@ from typing import Any
 from geoalchemy2.shape import to_shape
 
 from app.schemas.common import GeoPointResponse
+from app.services.risk.semantics import normalize_hazard_scores
 from app.spatial import to_geojson_point, to_geojson_polygon
 
 
@@ -50,6 +51,7 @@ def district_to_dict(d) -> dict[str, Any]:
 
 
 def habitation_to_dict(h) -> dict[str, Any]:
+    norm_hazards = normalize_hazard_scores(h.hazard_scores, district=h.district, state=h.state)
     return {
         "id": h.id,
         "name": h.name,
@@ -62,7 +64,7 @@ def habitation_to_dict(h) -> dict[str, Any]:
         "population": h.population,
         "households": h.households,
         "confidence": h.confidence,
-        "hazardScores": h.hazard_scores or [],
+        "hazardScores": norm_hazards,
         "vulnerabilityScore": h.vulnerability_score,
         "riskHistory": h.risk_history or [],
         "elevation": h.elevation,
@@ -370,3 +372,86 @@ def infrastructure_to_geojson_feature(ia) -> dict[str, Any]:
             "district": getattr(ia, "district", None),
         },
     }
+
+
+def candidate_discovery_run_to_dict(run) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "origin_habitation_id": run.origin_habitation_id,
+        "analysis_version": run.analysis_version,
+        "config_version": run.config_version,
+        "search_radius_km": run.search_radius_km,
+        "status": run.status,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "analysis_resolution_meters": getattr(run, "analysis_resolution_meters", None),
+        "effective_source_resolution_meters": getattr(run, "effective_source_resolution_meters", None),
+        "cells_evaluated": run.cells_evaluated,
+        "cells_excluded": run.cells_excluded,
+        "total_aoi_area_sq_km": getattr(run, "total_aoi_area_sq_km", None),
+        "excluded_area_sq_km": getattr(run, "excluded_area_sq_km", None),
+        "feasible_area_sq_km": getattr(run, "feasible_area_sq_km", None),
+        "feasible_percent": getattr(run, "feasible_percent", None),
+        "candidate_eligible_cells": getattr(run, "candidate_eligible_cells", None),
+        "candidate_eligible_area_sq_km": getattr(run, "candidate_eligible_area_sq_km", None),
+        "candidate_count": run.candidate_count,
+        "warning_metadata": run.warning_metadata or [],
+        "created_at": run.created_at,
+    }
+
+
+def candidate_parcel_to_dict(cp) -> dict[str, Any]:
+    return {
+        "id": cp.id,
+        "discovery_run_id": cp.discovery_run_id,
+        "origin_habitation_id": cp.origin_habitation_id,
+        "rank": cp.rank,
+        "suitability_score": cp.suitability_score,
+        "confidence_score": cp.confidence_score,
+        "robustness_score": cp.robustness_score,
+        "rank_stability": cp.rank_stability,
+        "status": cp.status,
+        "area_sq_km": cp.area_sq_km,
+        "area_hectares": cp.area_hectares,
+        "distance_from_origin_km": cp.distance_from_origin_km,
+        "mean_slope_degrees": getattr(cp, "mean_slope_degrees", 0.0),
+        "exclusion_summary": cp.exclusion_summary or {},
+        "criteria_scores": cp.criteria_scores or {},
+        "reason_codes": cp.reason_codes or [],
+        "limitations": cp.limitations or [],
+        "explanation": cp.explanation or {},
+        "data_mode": cp.data_mode,
+        "centroid": geom_to_point(cp.centroid),
+        "created_at": cp.created_at,
+    }
+
+
+def candidate_parcel_to_geojson_feature(cp) -> dict[str, Any]:
+    from app.spatial import to_geojson_geometry
+    return {
+        "type": "Feature",
+        "id": cp.id,
+        "geometry": to_geojson_geometry(cp.geom),
+        "properties": {
+            "id": cp.id,
+            "discoveryRunId": cp.discovery_run_id,
+            "originHabitationId": cp.origin_habitation_id,
+            "rank": cp.rank,
+            "suitabilityScore": cp.suitability_score,
+            "confidenceScore": cp.confidence_score,
+            "robustnessScore": cp.robustness_score,
+            "rankStability": cp.rank_stability,
+            "status": cp.status,
+            "areaSqKm": cp.area_sq_km,
+            "areaHectares": cp.area_hectares,
+            "distanceKm": cp.distance_from_origin_km,
+            "meanSlopeDegrees": getattr(cp, "mean_slope_degrees", 0.0),
+            "dataMode": cp.data_mode,
+            "reasonCodes": cp.reason_codes or [],
+            "limitations": cp.limitations or [],
+            "exclusionSummary": cp.exclusion_summary or {},
+            "criteriaScores": cp.criteria_scores or {},
+            "explanation": cp.explanation or {},
+        },
+    }
+
