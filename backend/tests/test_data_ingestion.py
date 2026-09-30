@@ -7,7 +7,6 @@ import pytest
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point, Polygon
 
-from app.database import SessionLocal
 from app.models.data_source import DataSource
 from app.models.enums import DataMode, IngestionStatus, SourceFreshness
 from app.models.hazard_zone import HazardZone
@@ -21,13 +20,6 @@ from app.services.ingestion.osm import OSMIngestionConnector, map_osm_tags_to_ty
 from app.services.ingestion.registry import SourceRegistryService, evaluate_source_freshness
 from app.services.ingestion.terrain import TerrainProcessingService, calculate_slope_degrees
 from app.services.ingestion.weather import WeatherIngestionConnector
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 def test_source_freshness_evaluation():

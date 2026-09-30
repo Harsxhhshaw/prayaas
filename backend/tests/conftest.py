@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Generator
 from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, MultiPolygon
 from geoalchemy2.shape import from_shape
 
 from app.api.deps import get_db
@@ -23,6 +24,9 @@ from app.models import (
     RelocationPriority,
     State,
 )
+from app.models.candidate_discovery import CandidateDiscoveryRun, CandidateParcel
+from app.models.enums import DataMode
+from app.models.risk import VulnerabilityProfile
 from app.seeds.seed_chamoli import (
     CANDIDATE_SITES_DATA,
     DATA_SOURCES_DATA,
@@ -31,6 +35,7 @@ from app.seeds.seed_chamoli import (
     HAZARD_ZONES_DATA,
     INFRASTRUCTURE_DATA,
     STATES_AND_DISTRICTS,
+    VULNERABILITY_PROFILES_DATA,
 )
 
 
@@ -102,6 +107,7 @@ def seeded_mock_objects():
             area_km_sq=rz["area_km_sq"],
             declared_date=rz["declared_date"],
             last_updated=rz["last_updated"],
+            data_mode=rz.get("data_mode", DataMode.DEMO.value),
         )
         hazard_zones.append(zone)
 
@@ -135,6 +141,7 @@ def seeded_mock_objects():
             status=cs["status"],
             verification_status=cs["verification_status"],
             assigned_habitations=cs["assigned_habitations"],
+            data_mode=cs.get("data_mode", DataMode.DEMO.value),
         )
         candidate_sites.append(site)
 
@@ -150,6 +157,7 @@ def seeded_mock_objects():
             status=inf["status"],
             capacity=inf["capacity"],
             district=inf.get("district"),
+            data_mode=inf.get("data_mode", DataMode.DEMO.value),
         )
         infrastructure.append(ia)
 
@@ -165,6 +173,7 @@ def seeded_mock_objects():
             last_sync=ds["last_sync"],
             records_count=ds["records_count"],
             latency_ms=ds["latency_ms"],
+            data_mode=ds.get("data_mode", DataMode.DEMO.value),
         )
         data_sources.append(obj)
 
@@ -183,6 +192,7 @@ def seeded_mock_objects():
             fatalities=de["fatalities"],
             displaced_persons=de["displaced_persons"],
             description=de["description"],
+            data_mode=de.get("data_mode", DataMode.DEMO.value),
         )
         disaster_events.append(evt)
 
@@ -217,6 +227,130 @@ def seeded_mock_objects():
         )
     ]
 
+    # Vulnerability Profiles
+    vulnerability_profiles = [
+        VulnerabilityProfile(
+            id=f"VP-{vp['habitation_id']}",
+            habitation_id=vp["habitation_id"],
+            population=vp["population"],
+            households=vp["households"],
+            children_share=vp["children_share"],
+            elderly_share=vp["elderly_share"],
+            disability_share=vp["disability_share"],
+            housing_vulnerability=vp["housing_vulnerability"],
+            population_density=vp["population_density"],
+            healthcare_access_score=vp["healthcare_access_score"],
+            road_access_score=vp["road_access_score"],
+            isolation_score=vp["isolation_score"],
+            data_confidence=vp["data_confidence"],
+            data_mode=DataMode.FIELD.value,
+        )
+        for vp in VULNERABILITY_PROFILES_DATA
+    ]
+
+    # Candidate Discovery Run for HAB-002 (Raini)
+    cd_run = CandidateDiscoveryRun(
+        id="CDR-8E12008ADCC0",
+        origin_habitation_id="HAB-002",
+        analysis_version="PRAYAAS-CANDIDATE-1.0",
+        config_version="1.0.0",
+        search_radius_km=15.0,
+        status="COMPLETED",
+        started_at=datetime(2026, 9, 30, 0, 0, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 9, 30, 0, 5, tzinfo=timezone.utc),
+        created_at=datetime(2026, 9, 30, 0, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 9, 30, 0, 5, tzinfo=timezone.utc),
+        candidate_count=3,
+        total_aoi_area_sq_km=706.86,
+        excluded_area_sq_km=419.32,
+        feasible_area_sq_km=287.54,
+        feasible_percent=40.7,
+    )
+    discovery_runs = [cd_run]
+
+    # Modeled Candidate Parcels for HAB-002
+    p_poly = MultiPolygon([Polygon([(79.55, 30.50), (79.56, 30.50), (79.56, 30.51), (79.55, 30.51), (79.55, 30.50)])])
+    p_geom = from_shape(p_poly, srid=4326)
+    c_geom = from_shape(Point(79.555, 30.505), srid=4326)
+
+    candidate_parcels = [
+        CandidateParcel(
+            id="PARCEL-5958B764DA60",
+            discovery_run_id="CDR-8E12008ADCC0",
+            origin_habitation_id="HAB-002",
+            geom=p_geom,
+            centroid=c_geom,
+            area_sq_km=0.20,
+            area_hectares=20.0,
+            distance_from_origin_km=0.46,
+            mean_slope_degrees=8.5,
+            suitability_score=88.5,
+            robustness_score=75.0,
+            rank_stability=95.0,
+            rank=1,
+            status="REQUIRES_FIELD_REVIEW",
+            confidence_score=75.0,
+            exclusion_summary={"SLOPE": "PASS", "HAZARD": "PASS", "SETTLEMENT": "PASS"},
+            criteria_scores={"ROAD_ACCESS": 85.0, "WATER_ACCESS": 80.0},
+            reason_codes=["OPTIMAL_DISTANCE", "SAFE_SLOPE"],
+            limitations=["ROAD_CONNECTIVITY_GAP"],
+            explanation={},
+            data_mode=DataMode.MODELED.value,
+            created_at=datetime(2026, 9, 30, 0, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 9, 30, 0, 5, tzinfo=timezone.utc),
+        ),
+        CandidateParcel(
+            id="PARCEL-E3247A11E0EC",
+            discovery_run_id="CDR-8E12008ADCC0",
+            origin_habitation_id="HAB-002",
+            geom=p_geom,
+            centroid=c_geom,
+            area_sq_km=0.02,
+            area_hectares=2.0,
+            distance_from_origin_km=9.35,
+            mean_slope_degrees=9.9,
+            suitability_score=91.2,
+            robustness_score=61.5,
+            rank_stability=85.0,
+            rank=2,
+            status="REQUIRES_FIELD_REVIEW",
+            confidence_score=37.8,
+            exclusion_summary={"SLOPE": "PASS", "HAZARD": "PASS", "SETTLEMENT": "PASS"},
+            criteria_scores={"ROAD_ACCESS": 70.0, "WATER_ACCESS": 75.0},
+            reason_codes=["HIGH_SUITABILITY"],
+            limitations=["LIMITED_AREA"],
+            explanation={},
+            data_mode=DataMode.MODELED.value,
+            created_at=datetime(2026, 9, 30, 0, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 9, 30, 0, 5, tzinfo=timezone.utc),
+        ),
+        CandidateParcel(
+            id="PARCEL-287BBE825053",
+            discovery_run_id="CDR-8E12008ADCC0",
+            origin_habitation_id="HAB-002",
+            geom=p_geom,
+            centroid=c_geom,
+            area_sq_km=0.18,
+            area_hectares=18.0,
+            distance_from_origin_km=8.85,
+            mean_slope_degrees=11.0,
+            suitability_score=85.0,
+            robustness_score=68.0,
+            rank_stability=88.0,
+            rank=3,
+            status="REQUIRES_FIELD_REVIEW",
+            confidence_score=60.0,
+            exclusion_summary={"SLOPE": "PASS", "HAZARD": "PASS", "SETTLEMENT": "PASS"},
+            criteria_scores={"ROAD_ACCESS": 65.0, "WATER_ACCESS": 70.0},
+            reason_codes=["EXPANSION_CAPACITY"],
+            limitations=["MODERATE_SLOPE"],
+            explanation={},
+            data_mode=DataMode.MODELED.value,
+            created_at=datetime(2026, 9, 30, 0, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 9, 30, 0, 5, tzinfo=timezone.utc),
+        ),
+    ]
+
     return {
         State: states,
         District: districts,
@@ -228,15 +362,56 @@ def seeded_mock_objects():
         DisasterEvent: disaster_events,
         RelocationPriority: relocation_priorities,
         OperationalAlert: operational_alerts,
+        VulnerabilityProfile: vulnerability_profiles,
+        CandidateDiscoveryRun: discovery_runs,
+        CandidateParcel: candidate_parcels,
     }
 
 
 class MockQuery:
-    def __init__(self, items):
+    def __init__(self, items, parent_list=None, entities=None):
         self._items = list(items)
+        self._parent_list = parent_list if parent_list is not None else items
+        self._entities = entities or ()
 
-    def filter(self, *args, **kwargs):
-        return self
+    def filter(self, *criterion, **kwargs):
+        if not criterion:
+            return self
+        filtered = []
+        for item in self._items:
+            match = True
+            for c in criterion:
+                if hasattr(c, "left") and hasattr(c, "right"):
+                    attr_name = getattr(c.left, "name", None) or getattr(c.left, "key", None)
+                    val = getattr(c.right, "value", c.right)
+                    if attr_name and hasattr(item, attr_name):
+                        item_val = getattr(item, attr_name)
+                        op = getattr(c, "operator", None)
+                        op_name = getattr(op, "__name__", "") if op else ""
+                        if op_name == "in_op":
+                            if not isinstance(val, (list, tuple, set)) or item_val not in val:
+                                match = False
+                                break
+                        elif op_name == "notin_op":
+                            if isinstance(val, (list, tuple, set)) and item_val in val:
+                                match = False
+                                break
+                        elif op is not None:
+                            try:
+                                if not op(item_val, val):
+                                    match = False
+                                    break
+                            except Exception:
+                                if item_val != val:
+                                    match = False
+                                    break
+                        else:
+                            if item_val != val:
+                                match = False
+                                break
+            if match:
+                filtered.append(item)
+        return MockQuery(filtered, parent_list=self._parent_list, entities=self._entities)
 
     def order_by(self, *args, **kwargs):
         return self
@@ -246,6 +421,35 @@ class MockQuery:
 
     def join(self, *args, **kwargs):
         return self
+
+    def group_by(self, *args, **kwargs):
+        if len(self._entities) >= 2:
+            first = self._entities[0]
+            attr = getattr(first, "name", None) or getattr(first, "key", "data_mode")
+            counts = {}
+            for item in self._items:
+                val = getattr(item, attr, None) or "DEMO"
+                counts[val] = counts.get(val, 0) + 1
+            return MockQuery([(k, v) for k, v in counts.items()], entities=self._entities)
+        return self
+
+    def distinct(self, *args, **kwargs):
+        return self
+
+    def limit(self, n):
+        return MockQuery(self._items[:n], parent_list=self._parent_list, entities=self._entities)
+
+    def offset(self, n):
+        return MockQuery(self._items[n:], parent_list=self._parent_list, entities=self._entities)
+
+    def delete(self, *args, **kwargs):
+        count = len(self._items)
+        if isinstance(self._parent_list, list):
+            for item in list(self._items):
+                if item in self._parent_list:
+                    self._parent_list.remove(item)
+        self._items.clear()
+        return count
 
     def all(self):
         return self._items
@@ -267,8 +471,35 @@ class MockDbSession:
         target = getattr(entity, "class_", entity)
         for model_cls, items in self.data_map.items():
             if target is model_cls or (hasattr(entity, "table") and entity.table.name == model_cls.__tablename__):
-                return MockQuery(items)
-        return MockQuery([])
+                return MockQuery(items, parent_list=items, entities=entities)
+        return MockQuery([], entities=entities)
+
+    def add(self, instance):
+        cls = type(instance)
+        if cls not in self.data_map:
+            self.data_map[cls] = []
+        self.data_map[cls].append(instance)
+
+    def add_all(self, instances):
+        for inst in instances:
+            self.add(inst)
+
+    def delete(self, instance):
+        cls = type(instance)
+        if cls in self.data_map and instance in self.data_map[cls]:
+            self.data_map[cls].remove(instance)
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass
+
+    def flush(self):
+        pass
+
+    def refresh(self, instance):
+        pass
 
     def execute(self, stmt):
         mock_result = MagicMock()
@@ -293,12 +524,25 @@ def client(seeded_mock_objects) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture
-def db():
-    """Provides a SQLAlchemy session connected to the real PostGIS database."""
+def db(seeded_mock_objects):
+    """Provides a SQLAlchemy session. If real PostGIS is reachable, connects to it; otherwise uses MockDbSession."""
+    import socket
     from app.database import SessionLocal
-    session = SessionLocal()
+
+    postgres_live = False
     try:
-        yield session
-    finally:
-        session.close()
+        with socket.create_connection(("localhost", 5432), timeout=0.5):
+            postgres_live = True
+    except Exception:
+        postgres_live = False
+
+    if postgres_live:
+        session = SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+    else:
+        yield MockDbSession(seeded_mock_objects)
+
 

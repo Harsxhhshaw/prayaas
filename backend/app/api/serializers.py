@@ -6,6 +6,7 @@ camelCase API response models, and RFC 7946 GeoJSON collections.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from geoalchemy2.shape import to_shape
 
@@ -396,7 +397,7 @@ def candidate_discovery_run_to_dict(run) -> dict[str, Any]:
         "candidate_eligible_area_sq_km": getattr(run, "candidate_eligible_area_sq_km", None),
         "candidate_count": run.candidate_count,
         "warning_metadata": run.warning_metadata or [],
-        "created_at": run.created_at,
+        "created_at": run.created_at or getattr(run, "started_at", None) or datetime.now(timezone.utc),
     }
 
 
@@ -422,7 +423,7 @@ def candidate_parcel_to_dict(cp) -> dict[str, Any]:
         "explanation": cp.explanation or {},
         "data_mode": cp.data_mode,
         "centroid": geom_to_point(cp.centroid),
-        "created_at": cp.created_at,
+        "created_at": cp.created_at or datetime.now(timezone.utc),
     }
 
 

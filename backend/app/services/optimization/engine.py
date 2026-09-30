@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import math
 from typing import Any
+import uuid
 import numpy as np
 from scipy.optimize import LinearConstraint, milp
 from sqlalchemy.orm import Session
@@ -148,7 +150,9 @@ class RelocationOptimizationEngine:
 
         # 3. Decision Support Validation Guard
         if request.mode == "DECISION_SUPPORT" and usable_count == 0:
+            now_utc = datetime.now(timezone.utc)
             run_record = RelocationOptimizationRun(
+                id=f"OPT-{uuid.uuid4().hex[:12].upper()}",
                 origin_habitation_id=hab.id,
                 analysis_version=ANALYSIS_VERSION,
                 config_version=CONFIG_VERSION,
@@ -161,6 +165,8 @@ class RelocationOptimizationEngine:
                 constraints={"max_sites": request.max_sites, "min_allocation": request.min_allocation_size},
                 source_snapshot={"origin": hab.name, "population": target_pop},
                 input_snapshot=request.model_dump(),
+                created_at=now_utc,
+                updated_at=now_utc,
             )
             self.db.add(run_record)
             self.db.commit()
@@ -199,7 +205,9 @@ class RelocationOptimizationEngine:
         solver_status = "OPTIMAL" if total_system_capacity >= target_pop else "PARTIAL_ALLOCATION"
 
         # Create Run Record
+        now_utc = datetime.now(timezone.utc)
         run_record = RelocationOptimizationRun(
+            id=f"OPT-{uuid.uuid4().hex[:12].upper()}",
             origin_habitation_id=hab.id,
             analysis_version=ANALYSIS_VERSION,
             config_version=CONFIG_VERSION,
@@ -212,6 +220,8 @@ class RelocationOptimizationEngine:
             constraints={"max_sites": request.max_sites, "min_allocation": request.min_allocation_size},
             source_snapshot={"origin": hab.name, "population": target_pop, "usable_count": usable_count},
             input_snapshot=request.model_dump(),
+            created_at=now_utc,
+            updated_at=now_utc,
         )
         self.db.add(run_record)
         self.db.flush()
@@ -402,7 +412,9 @@ class RelocationOptimizationEngine:
 
         confidence = 68.0 if mode == "EXPLORATORY" else 90.0
 
+        now_utc = datetime.now(timezone.utc)
         plan = RelocationPlan(
+            id=f"PLAN-{uuid.uuid4().hex[:12].upper()}",
             run_id=run_id,
             plan_name=plan_name,
             strategy_type=strategy_type,
@@ -421,11 +433,15 @@ class RelocationOptimizationEngine:
             assumption_dependence=assumption_dependence,
             explanation="\n".join(explanation_lines),
             binding_constraints=binding_constraints,
+            created_at=now_utc,
+            updated_at=now_utc,
         )
 
         # Build Allocation children
         for cand, pop in used_candidates:
             alloc = RelocationAllocation(
+                id=f"ALLOC-{uuid.uuid4().hex[:12].upper()}",
+                plan_id=plan.id,
                 candidate_type=cand["type"],
                 candidate_id=cand["id"],
                 allocated_population=pop,
@@ -438,6 +454,7 @@ class RelocationOptimizationEngine:
                     "suitability_score": cand["suitability_score"],
                     "infrastructure_burden": cand["infrastructure_burden"],
                 },
+                created_at=now_utc,
             )
             plan.allocations.append(alloc)
 

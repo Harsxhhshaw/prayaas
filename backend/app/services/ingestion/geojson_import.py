@@ -99,12 +99,16 @@ class GeoJSONImporter(BaseIngestionConnector):
                     self.db.add(zone)
                     self.db.flush()
 
-                    # Compute geodesic area with ST_Area
+                    # Compute geodesic area with ST_Area, fallback to spherical_polygon_area_sq_km
                     area_m2 = self.db.query(
                         func.ST_Area(func.ST_GeogFromWKB(zone.geom))
                     ).scalar()
                     if area_m2:
                         zone.computed_area_sq_km = round(area_m2 / 1_000_000.0, 3)
+                    else:
+                        from app.spatial import spherical_polygon_area_sq_km
+                        coords = list(poly.exterior.coords)
+                        zone.computed_area_sq_km = spherical_polygon_area_sq_km(coords)
 
                     ctx.inc_inserted()
 

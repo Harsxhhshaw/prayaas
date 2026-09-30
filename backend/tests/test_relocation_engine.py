@@ -3,8 +3,6 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.database import SessionLocal
-from app.main import app
 from app.models.candidate_site import CandidateSite
 from app.models.enums import ReadinessLevel, RelocationUrgency
 from app.models.habitation import Habitation
@@ -12,18 +10,6 @@ from app.models.relocation import RelocationAssessment
 from app.models.risk import RiskAssessment
 from app.services.relocation.config import DEFAULT_RELOCATION_CONFIG
 from app.services.relocation.engine import RelocationEngine
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
-
-
-@pytest.fixture
-def client():
-    return TestClient(app)
 
 
 def test_candidate_sites_never_reduce_need_score(db):
@@ -50,6 +36,8 @@ def test_candidate_sites_never_reduce_need_score(db):
 
 def test_strict_readiness_caps_applied(db):
     """When candidate sites are in DEMO mode or UNVERIFIED, readiness score MUST be capped."""
+    from app.models.candidate_discovery import CandidateParcel
+    db.query(CandidateParcel).filter(CandidateParcel.origin_habitation_id == "HAB-001").delete()
     engine = RelocationEngine(db)
     assessment = engine.assess_habitation("HAB-001")
 

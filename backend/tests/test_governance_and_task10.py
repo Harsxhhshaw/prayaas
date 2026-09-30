@@ -43,8 +43,6 @@ from app.services.relocation.engine import RelocationEngine
 from app.services.risk.engine import RiskEngine
 from app.services.satellite.engine import SatelliteEvidenceEngine
 
-client = TestClient(app)
-
 
 # ==============================================================================
 # 1. Field Evidence & Progressive Verification Tests

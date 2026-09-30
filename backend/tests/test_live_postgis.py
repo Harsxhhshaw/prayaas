@@ -15,6 +15,17 @@ from app.database import engine
 
 @pytest.fixture(scope="module")
 def db_conn():
+    import socket
+    postgres_live = False
+    try:
+        with socket.create_connection(("localhost", 5432), timeout=0.5):
+            postgres_live = True
+    except Exception:
+        postgres_live = False
+
+    if not postgres_live:
+        pytest.skip("Live PostGIS database is not running on localhost:5432")
+
     conn = engine.connect()
     yield conn
     conn.close()

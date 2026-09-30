@@ -50,8 +50,8 @@ def calculate_sustainability_index(
     """
     # 1. Evaluate dimensional scores (0-100, 100 = most sustainable/safe)
     physical_safety = max(0.0, min(100.0, 100.0 - (baseline_hazard * 0.95)))
-    road_reliability = max(0.0, min(100.0, 100.0 - (nearest_road_km * 12.0)))
-    health_accessibility = max(0.0, min(100.0, 100.0 - (nearest_hospital_km * 3.5)))
+    road_reliability = max(0.0, min(100.0, 100.0 - (nearest_road_km * 12.0))) if nearest_road_km is not None else None
+    health_accessibility = max(0.0, min(100.0, 100.0 - (nearest_hospital_km * 3.5))) if nearest_hospital_km is not None else None
     education_access = max(0.0, min(100.0, 100.0 - (nearest_school_km * 5.0))) if nearest_school_km is not None else None
     infra_resilience = max(0.0, min(100.0, 100.0 - (vulnerability_score * 0.8)))
     water_security = None  # UNKNOWN: genuine data limitation in un-surveyed habitations
@@ -175,24 +175,29 @@ class RiskEngine:
         )
 
         # ── 4. Exposure Score ──
-        pop = hab.population
-        pop_density = v_profile.population_density if v_profile else (pop / 2.0)
+        pop = float(hab.population or 0.0)
+        pop_density = float(v_profile.population_density) if (v_profile and v_profile.population_density is not None) else (pop / 2.0)
         exposure_raw = min(100.0, (pop / 15.0) + (pop_density * 0.3) + 20.0)
         exposure_score = round(max(10.0, min(100.0, exposure_raw)), 1)
 
         # ── 5. Vulnerability Score ──
         if v_profile:
+            c_share = float(v_profile.children_share or 0.0)
+            e_share = float(v_profile.elderly_share or 0.0)
+            d_share = float(v_profile.disability_share or 0.0)
             demographic_vuln = (
-                (v_profile.children_share * 100.0) * 0.35
-                + (v_profile.elderly_share * 100.0) * 0.40
-                + (v_profile.disability_share * 100.0) * 0.25
+                (c_share * 100.0) * 0.35
+                + (e_share * 100.0) * 0.40
+                + (d_share * 100.0) * 0.25
             )
+            h_vuln = float(v_profile.housing_vulnerability or 0.0)
+            iso = float(v_profile.isolation_score or 0.0)
             vulnerability_score = (
                 (demographic_vuln * 0.40)
-                + (v_profile.housing_vulnerability * 0.35)
-                + (v_profile.isolation_score * 0.25)
+                + (h_vuln * 0.35)
+                + (iso * 0.25)
             )
-            if v_profile.housing_vulnerability > 70.0:
+            if h_vuln > 70.0:
                 reason_codes.append("KUCCHA_HOUSING_VULNERABILITY")
         else:
             vulnerability_score = float(hab.vulnerability_score or 45.0)
@@ -200,9 +205,9 @@ class RiskEngine:
         vulnerability_score = round(max(10.0, min(100.0, vulnerability_score)), 1)
 
         # ── 6. Adaptive Capacity Deficit ──
-        road_km = hab.nearest_road
-        hosp_km = hab.nearest_hospital
-        school_km = hab.nearest_school
+        road_km = float(hab.nearest_road) if hab.nearest_road is not None else 5.0
+        hosp_km = float(hab.nearest_hospital) if hab.nearest_hospital is not None else 10.0
+        school_km = float(hab.nearest_school) if hab.nearest_school is not None else 5.0
         access_score = max(0.0, 100.0 - (road_km * 5.0 + hosp_km * 2.5 + school_km * 2.0))
         adaptive_capacity_score = round(max(5.0, min(95.0, access_score)), 1)
         adaptive_capacity_deficit_score = round(100.0 - adaptive_capacity_score, 1)
@@ -279,12 +284,13 @@ class RiskEngine:
 
         # ── 11. Multi-Method Model Agreement Evaluation ──
         # AHP susceptibility evaluation
-        local_relief_slope = min(65.0, max(5.0, (hab.elevation * 0.015 * 0.4) + 18.0))
+        elevation_val = float(hab.elevation) if hab.elevation is not None else 1800.0
+        local_relief_slope = min(65.0, max(5.0, (elevation_val * 0.015 * 0.4) + 18.0))
         ahp_model = AHPSusceptibilityModel()
         ahp_res = ahp_model.evaluate({
             "slope": local_relief_slope,
             "rainfall": rainfall_24h,
-            "road_distance": hab.nearest_road,
+            "road_distance": road_km,
         })
 
         # Frequency Ratio susceptibility evaluation
@@ -330,6 +336,7 @@ class RiskEngine:
                 # MANDATORY DOWNGRADE GUARD
                 risk_classification = RedZoneClassification.CONDITIONAL_RED.value
                 reason_codes.append("LOW_CONFIDENCE_FIELD_VERIFICATION_REQUIRED")
+                reason_codes.append("LOW_CONFIDENCE_VERIFICATION_REQUIRED")
         elif (
             (dynamic_hazard >= self.config.DYNAMIC_RED_SURGE_THRESHOLD or current_dynamic_risk >= self.config.DYNAMIC_RED_SURGE_THRESHOLD)
             and rainfall_24h >= 65.0

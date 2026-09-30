@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 import numpy as np
@@ -125,14 +126,19 @@ class CandidateDiscoveryEngine:
             origin_lat + deg_lat_span,
         )
 
+        now_utc = datetime.now(timezone.utc)
+        run_id = f"CDR-{uuid.uuid4().hex[:12].upper()}"
         run = CandidateDiscoveryRun(
+            id=run_id,
             origin_habitation_id=hab.id,
             analysis_version=self.config.analysis_version,
             config_version=self.config.config_version,
             search_radius_km=radius_km,
             aoi_geometry=from_shape(aoi_poly, srid=4326),
             status=CandidateDiscoveryStatus.RUNNING.value,
-            started_at=datetime.now(timezone.utc),
+            started_at=now_utc,
+            created_at=now_utc,
+            updated_at=now_utc,
             analysis_resolution_meters=analysis_res,
             effective_source_resolution_meters=source_res,
             input_snapshot={
@@ -438,6 +444,7 @@ class CandidateDiscoveryEngine:
             centroid_pt = Point(parcel.centroid_lng, parcel.centroid_lat)
 
             cp = CandidateParcel(
+                id=f"PARCEL-{uuid.uuid4().hex[:12].upper()}",
                 discovery_run_id=run.id,
                 origin_habitation_id=hab.id,
                 geom=from_shape(shapely_geom, srid=4326),
@@ -460,6 +467,8 @@ class CandidateDiscoveryEngine:
                 source_snapshot=run.source_snapshot,
                 input_snapshot=run.input_snapshot,
                 data_mode=DataMode.MODELED.value,
+                created_at=now_utc,
+                updated_at=now_utc,
             )
             self.db.add(cp)
             persisted_parcels.append(cp)

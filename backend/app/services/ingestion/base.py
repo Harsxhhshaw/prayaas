@@ -90,7 +90,7 @@ class BaseIngestionConnector:
                 if source:
                     source.last_ingested_at = finished_at
                     source.last_successful_ingestion = finished_at
-                    source.records_count += ctx.inserted
+                    source.records_count = (source.records_count or 0) + ctx.inserted
                     source.status = "ACTIVE"
             self.db.commit()
         except Exception as exc:

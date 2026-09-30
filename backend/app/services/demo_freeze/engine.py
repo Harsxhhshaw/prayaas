@@ -246,13 +246,17 @@ class DemoFreezeEngine:
         )
         table_counts["LandStatusRecord"] = ls_counts
 
-        # Aggregate total counts
+        # Aggregate total counts and sanitize keys
+        sanitized_table_counts: dict[str, dict[str, int]] = {}
         for tbl, counts in table_counts.items():
+            sanitized_table_counts[tbl] = {}
             for mode, count in counts.items():
-                if mode in total_by_mode:
-                    total_by_mode[mode] += count
+                mode_str = str(mode) if mode is not None else "DEMO"
+                sanitized_table_counts[tbl][mode_str] = sanitized_table_counts[tbl].get(mode_str, 0) + count
+                if mode_str in total_by_mode:
+                    total_by_mode[mode_str] += count
                 else:
-                    total_by_mode[mode] = count
+                    total_by_mode[mode_str] = count
 
         # Honest ML Status
         ml_status = {
@@ -264,7 +268,7 @@ class DemoFreezeEngine:
 
         return DataHonestyAuditResponse(
             counts_by_mode=total_by_mode,
-            table_breakdown=table_counts,
+            table_breakdown=sanitized_table_counts,
             ml_status=ml_status,
             timestamp=datetime.now(timezone.utc),
         )

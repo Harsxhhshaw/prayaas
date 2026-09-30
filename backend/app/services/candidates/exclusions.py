@@ -41,8 +41,11 @@ class HardExclusionEngine:
 
     def _load_registered_evidence_layers(self) -> None:
         """Inspects registered evidence layers to know which layers exist vs UNKNOWN."""
-        layers = self.db.query(EvidenceLayer).all()
-        self.available_evidence_types = {l.evidence_type for l in layers}
+        try:
+            layers = self.db.query(EvidenceLayer).all()
+            self.available_evidence_types = {l.evidence_type for l in layers}
+        except Exception:
+            self.available_evidence_types = set()
 
     def evaluate_cell(
         self,

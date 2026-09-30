@@ -44,9 +44,6 @@ from app.services.candidates.engine import CandidateDiscoveryEngine
 from app.services.relocation.engine import RelocationEngine
 
 
-client = TestClient(app)
-
-
 def test_candidate_discovery_config_and_ahp_consistency():
     """Verify that configuration defines valid AHP pairwise matrix with CR <= 0.10."""
     config = CandidateDiscoveryConfig()
@@ -340,7 +337,7 @@ def test_relocation_readiness_with_modeled_parcels(db: Session):
         db.commit()
 
 
-def test_candidate_discovery_api_endpoints(db: Session):
+def test_candidate_discovery_api_endpoints(client: TestClient, db: Session):
     """Verify REST and GeoJSON endpoints for candidate discovery."""
     hab = db.query(Habitation).first()
 

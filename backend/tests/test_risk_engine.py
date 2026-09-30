@@ -2,7 +2,6 @@
 
 import pytest
 
-from app.database import SessionLocal
 from app.models.enums import RedZoneClassification
 from app.models.habitation import Habitation
 from app.models.risk import RiskAssessment
@@ -10,13 +9,6 @@ from app.services.risk.config import DEFAULT_RISK_CONFIG
 from app.services.risk.confidence import calculate_risk_confidence
 from app.services.risk.engine import RiskEngine, calculate_sustainability_index
 from app.services.risk.explanations import generate_risk_explanation
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 def test_confidence_engine_scoring():
