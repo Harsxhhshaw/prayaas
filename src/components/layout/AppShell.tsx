@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import { ToolRail } from './ToolRail';
 import { TopBar } from './TopBar';
@@ -23,7 +24,16 @@ export function AppShell() {
 
         {/* Central Workspace (70-85% map or full-page inventory) */}
         <main className="flex-1 relative overflow-hidden bg-workspace">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="h-full w-full flex flex-col items-center justify-center bg-workspace font-mono text-xs text-text-muted">
+                <div className="w-5 h-5 border-2 border-gis-blue border-t-transparent rounded-full animate-spin mb-2" />
+                <span>INITIALIZING WORKSPACE...</span>
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

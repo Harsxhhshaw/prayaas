@@ -1,17 +1,19 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './state/AppContext';
 import { AppShell } from './components/layout/AppShell';
-import { CommandCentre } from './pages/CommandCentre';
-import { Habitations } from './pages/Habitations';
-import { RedZones } from './pages/RedZones';
-import { RelocationPriority } from './pages/RelocationPriority';
-import { CandidateSites } from './pages/CandidateSites';
-import { DigitalTwin } from './pages/DigitalTwin';
-import { ScenarioLab } from './pages/ScenarioLab';
-import { FieldVerification } from './pages/FieldVerification';
-import { Reports } from './pages/Reports';
-import { DataSources } from './pages/DataSources';
-import { SettingsPage } from './pages/SettingsPage';
+
+const CommandCentre = lazy(() => import('./pages/CommandCentre').then((m) => ({ default: m.CommandCentre })));
+const Habitations = lazy(() => import('./pages/Habitations').then((m) => ({ default: m.Habitations })));
+const RedZones = lazy(() => import('./pages/RedZones').then((m) => ({ default: m.RedZones })));
+const RelocationPriority = lazy(() => import('./pages/RelocationPriority').then((m) => ({ default: m.RelocationPriority })));
+const CandidateSites = lazy(() => import('./pages/CandidateSites').then((m) => ({ default: m.CandidateSites })));
+const DigitalTwin = lazy(() => import('./pages/DigitalTwin').then((m) => ({ default: m.DigitalTwin })));
+const ScenarioLab = lazy(() => import('./pages/ScenarioLab').then((m) => ({ default: m.ScenarioLab })));
+const FieldVerification = lazy(() => import('./pages/FieldVerification').then((m) => ({ default: m.FieldVerification })));
+const Reports = lazy(() => import('./pages/Reports').then((m) => ({ default: m.Reports })));
+const DataSources = lazy(() => import('./pages/DataSources').then((m) => ({ default: m.DataSources })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 export default function App() {
   return (
