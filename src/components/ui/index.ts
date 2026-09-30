@@ -5,3 +5,4 @@ export { LoadingSkeleton } from './LoadingSkeleton';
 export { EmptyState } from './EmptyState';
 export { RiskBar } from './RiskBar';
 export { PageHeader } from './PageHeader';
+export { DataModeBadge } from './DataModeBadge';

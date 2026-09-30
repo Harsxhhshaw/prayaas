@@ -1,0 +1,111 @@
+{
+  "snapshot_id": "DEMO-RAINI-HAB002-FINAL",
+  "timestamp": "2026-09-30T00:00:00Z",
+  "analysis_version": "PRAYAAS-1.0-PRODUCTION",
+  "config_version": "1.0.0",
+  "habitation": {
+    "id": "HAB-002",
+    "name": "Raini",
+    "district": "Chamoli",
+    "state": "Uttarakhand",
+    "population": 1256,
+    "households": 240,
+    "need_score": 71.9,
+    "urgency": "SHORT_TERM",
+    "readiness_score": 55.0,
+    "readiness_level": "MODERATE_READINESS",
+    "matrix_position": "MODERATE_READINESS_REVIEW"
+  },
+  "risk": {
+    "structural_risk": 80.0,
+    "dynamic_risk": 65.0,
+    "confidence_score": 68.0,
+    "red_zone_classification": "DYNAMIC_RED"
+  },
+  "candidate_parcels": {
+    "count": 182,
+    "total_area_ha": 28754.5,
+    "selected_candidate": {
+      "id": "PARCEL-E3247A11E0EC",
+      "rank": 1,
+      "area_hectares": 2.0,
+      "distance_km": 9.35,
+      "mean_slope_degrees": 9.9,
+      "suitability_score": 91.2,
+      "candidate_confidence": 37.8,
+      "robustness_score": 61.5,
+      "status": "REQUIRES_FIELD_REVIEW"
+    }
+  },
+  "carrying_capacity": {
+    "housing": "1500 persons capacity (MODELED bench density @ 75 persons/ha)",
+    "water": "1500 persons baseline (JJM 55 lpcd PLANNING_ASSUMPTION)",
+    "sanitation": "UNKNOWN (No percolation or DEWATS telemetry)",
+    "healthcare": "UNKNOWN (PHC Pipalkoti headroom unmeasured)",
+    "education": "1500 persons (RTE intake benchmark)",
+    "transport": "OK (OSM arterial connection)",
+    "utilities": "UNKNOWN (Substation loading unmeasured)",
+    "environment": "OK (Slope stability setback compliance)",
+    "overall_status": "UNKNOWN (KNOWN_DIMENSIONS_FEASIBLE)"
+  },
+  "optimization_alternatives": [
+    {
+      "name": "ALTERNATIVE A (MIN_DISTANCE)",
+      "strategy": "MIN_DISTANCE",
+      "allocated_population": 1256,
+      "unallocated_population": 0,
+      "site_count": 1,
+      "avg_distance_km": 0.46,
+      "capacity_utilization_pct": 83.7,
+      "candidate_ids": ["PARCEL-5958B764DA60"]
+    },
+    {
+      "name": "ALTERNATIVE B (MIN_SITE_COUNT)",
+      "strategy": "MIN_SITE_COUNT",
+      "allocated_population": 1256,
+      "unallocated_population": 0,
+      "site_count": 1,
+      "avg_distance_km": 0.46,
+      "capacity_utilization_pct": 83.7,
+      "candidate_ids": ["PARCEL-5958B764DA60"]
+    },
+    {
+      "name": "ALTERNATIVE C (BALANCED)",
+      "strategy": "BALANCED",
+      "allocated_population": 1256,
+      "unallocated_population": 0,
+      "site_count": 2,
+      "avg_distance_km": 8.89,
+      "capacity_utilization_pct": 76.1,
+      "candidate_ids": ["PARCEL-E3247A11E0EC", "PARCEL-287BBE825053"]
+    }
+  ],
+  "selected_plan": {
+    "name": "ALTERNATIVE A (MIN_DISTANCE)",
+    "strategy": "MIN_DISTANCE",
+    "candidate_ids": ["PARCEL-5958B764DA60"],
+    "assumption_dependence": "EXPLORATORY / ASSUMPTION-DEPENDENT",
+    "binding_constraints": []
+  },
+  "scenarios": {
+    "BASELINE": "UNKNOWN (KNOWN_DIMENSIONS_FEASIBLE)",
+    "WATER_STRESS": "FAIL (Water utilization 104.7% EXCEEDED)",
+    "POPULATION_SURGE": "UNKNOWN (KNOWN_DIMENSIONS_FEASIBLE)",
+    "ROAD_OUTAGE": "FAIL (Arterial transport severed)",
+    "CANDIDATE_OUTAGE": "FAIL (1256 unallocated population)",
+    "INFRA_UPGRADE": "UNKNOWN (KNOWN_DIMENSIONS_FEASIBLE)"
+  },
+  "plan_robustness": {
+    "tested_scenarios": 6,
+    "passed_scenarios": 0,
+    "degraded_scenarios": 0,
+    "failed_scenarios": 3,
+    "unknown_scenarios": 3,
+    "robustness_score": 0.0,
+    "raw_count_report": "0 of 3 evaluable scenarios passed, 3 additional scenarios unresolved"
+  },
+  "remaining_blockers": [
+    "FIELD_VERIFICATION_PENDING_ON_RECEPTION_SITES",
+    "CARRYING_CAPACITY_INSUFFICIENT_EVIDENCE"
+  ]
+}

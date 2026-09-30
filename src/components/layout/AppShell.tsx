@@ -2,12 +2,16 @@ import { Outlet } from 'react-router-dom';
 import { ToolRail } from './ToolRail';
 import { TopBar } from './TopBar';
 import { MetricsStrip } from './MetricsStrip';
+import { ServerStatusBanner } from './ServerStatusBanner';
 
 export function AppShell() {
   return (
     <div className="h-screen w-screen flex flex-col bg-workspace overflow-hidden select-none">
       {/* 1. Top Command Bar (48px) */}
       <TopBar />
+
+      {/* Global Server Mode / Cold-Start Banner */}
+      <ServerStatusBanner />
 
       {/* 2. Operational Metrics Strip (28px) */}
       <MetricsStrip />
