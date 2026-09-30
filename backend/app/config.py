@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     app_title: str = "PRAYAAS Geospatial Intelligence API"
+    api_key: str | None = None
 
     # ── CORS ──
     cors_origins: str | list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]

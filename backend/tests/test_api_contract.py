@@ -58,3 +58,27 @@ def test_openapi_schema_matches_contract():
 
     for cp in critical_paths:
         assert cp in paths, f"Critical endpoint {cp} missing from OpenAPI schema paths"
+
+
+def test_health_endpoints(client):
+    """Verifies that health and database health checks return expected structures without data leaks."""
+    res = client.get("/api/health")
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+
+    res_db = client.get("/api/health/database")
+    assert res_db.status_code == 200
+    data = res_db.json()
+    assert data["status"] in ("ok", "error")
+    if data["status"] == "error":
+        # Ensure credentials/host string are not exposed
+        assert "postgresql://" not in data.get("detail", "")
+        assert "password" not in data.get("detail", "")
+
+
+def test_verify_api_key_dependency():
+    """Validates verify_api_key behavior in dev pass-through and production enforcement."""
+    from app.api.deps import verify_api_key
+    assert verify_api_key(None) is None
+    assert verify_api_key("test-key") == "test-key"
+

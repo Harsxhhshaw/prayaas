@@ -23,5 +23,5 @@ def health_database(db: Session = Depends(get_db)):
     try:
         row = db.execute(text("SELECT PostGIS_Version()")).scalar()
         return {"status": "ok", "database": "postgresql+postgis", "postgis_version": row}
-    except Exception as exc:
-        return {"status": "error", "database": "unreachable", "detail": str(exc)}
+    except Exception:
+        return {"status": "error", "database": "unreachable", "detail": "Database connection failed"}
