@@ -263,7 +263,7 @@ export interface RedZoneIntelligenceItem {
   classification: string;
   composite_risk_score: number;
   dominant_hazard: string;
-  confidence_score: number;
+  confidence_score?: number | null;
   habitation_count: number;
   population_affected: number;
   computed_area_sq_km: number;
@@ -334,9 +334,10 @@ export interface CandidateDiscoveryRunResponse {
 // ── TASK 8 & 9: MULTI-SITE RELOCATION OPTIMIZATION & DIGITAL TWIN ──
 
 export interface RelocationAllocationItem {
-  id: string;
+  id?: string | null;
   candidate_type: string;
   candidate_id: string;
+  candidate_name?: string | null;
   allocated_population: number;
   usable_capacity: number;
   capacity_utilization_pct: number;
@@ -346,9 +347,9 @@ export interface RelocationAllocationItem {
 }
 
 export interface RelocationPlanItem {
-  id: string;
+  id?: string | null;
   plan_name: string;
-  strategy_type: 'MIN_DISTANCE' | 'MIN_SITE_COUNT' | 'BALANCED';
+  strategy_type: string;
   allocated_population: number;
   unallocated_population: number;
   allocation_ratio: number;
@@ -357,14 +358,26 @@ export interface RelocationPlanItem {
   max_distance_km: number;
   capacity_utilization_percent: number;
   relative_infrastructure_burden: number;
-  community_fragmentation: number;
-  livelihood_disruption: number;
-  environmental_pressure: number;
+  community_fragmentation: string | null;
+  livelihood_disruption: string | null;
+  environmental_pressure: number | null;
   evidence_confidence: number;
   assumption_dependence: string;
-  explanation: Record<string, any>;
+  explanation: string;
   binding_constraints: string[];
   allocations: RelocationAllocationItem[];
+}
+
+export interface RelocationOptimizationRunRequest {
+  origin_habitation_id: string;
+  mode?: 'EXPLORATORY' | 'DECISION_SUPPORT';
+  target_population?: number | null;
+  max_sites?: number | null;
+  min_allocation_size?: number;
+  candidate_ids?: string[] | null;
+  include_demo_candidates?: boolean;
+  include_benchmark_sites?: boolean;
+  objective_weights?: Record<string, number>;
 }
 
 export interface RelocationOptimizationRunResponse {
@@ -372,50 +385,202 @@ export interface RelocationOptimizationRunResponse {
   origin_habitation_id: string;
   analysis_version: string;
   config_version: string;
-  mode: 'PLANNING_EXPLORATORY' | 'DECISION_SUPPORT';
+  mode: string;
   target_population: number;
   solver_status: string;
   candidates_considered_count: number;
   usable_candidates_count: number;
   plans: RelocationPlanItem[];
-  message: string;
+  message?: string | null;
 }
 
-export interface SimulatedDestinationLoad {
+export interface ScenarioParameters {
+  population_change_pct?: number;
+  water_supply_change_pct?: number;
+  road_unavailable?: boolean;
+  unavailable_candidate_ids?: string[];
+  health_capacity_change_pct?: number;
+  education_capacity_change_pct?: number;
+  utility_capacity_change_pct?: number;
+  water_upgrade_capacity?: number;
+  education_upgrade_capacity?: number;
+  health_upgrade_capacity?: number;
+  hazard_score_change?: number;
+}
+
+export interface ServiceDimensionLoad {
+  dimension: string;
+  allocated_load: number;
+  capacity: number | null;
+  utilization_pct: number | null;
+  status: 'OK' | 'WARNING' | 'EXCEEDED' | 'UNKNOWN';
+  evidence_status: string;
+  notes: string;
+}
+
+export interface DestinationTwinState {
   candidate_id: string;
-  candidate_name: string;
-  baseline_population: number;
-  incoming_population: number;
-  total_projected_population: number;
-  status_by_dimension: Record<string, 'OK' | 'WARNING' | 'EXCEEDED' | 'UNKNOWN'>;
-  loads_by_dimension: Record<string, { demand: number; capacity: number; utilization_pct: number | null }>;
-  severed_access: boolean;
-  operational_status: 'NOMINAL' | 'DEGRADED' | 'EXCEEDED' | 'OUTAGE';
-  warnings: string[];
+  candidate_type: string;
+  allocated_population: number;
+  distance_km: number;
+  dimensions: ServiceDimensionLoad[];
+  overall_status: 'OK' | 'WARNING' | 'EXCEEDED' | 'UNKNOWN';
+  bottleneck_dimension: string | null;
 }
 
 export interface DigitalTwinSimulationResponse {
-  run_id: string;
   plan_id: string;
   scenario_name: string;
-  system_status: 'STABLE' | 'DEGRADED' | 'FAILURE';
-  destination_loads: SimulatedDestinationLoad[];
-  unhoused_due_to_failure: number;
-  bottleneck_dimension: string;
-  summary_notes: string[];
+  parameters: ScenarioParameters;
+  destinations: DestinationTwinState[];
+  total_allocated: number;
+  total_unallocated: number;
+  overall_plan_feasibility: 'PASS' | 'DEGRADED' | 'FAIL' | 'UNKNOWN';
+  limiting_bottleneck: string | null;
+  reoptimization_recommended: boolean;
+  summary: string;
 }
 
-export interface PlanRobustnessAssessmentResponse {
+export interface ScenarioOutcome {
+  scenario_id: string;
+  name: string;
+  status: 'PASS' | 'DEGRADED' | 'FAIL' | 'UNKNOWN';
+  binding_dimension: string | null;
+  summary: string;
+}
+
+export interface PlanRobustnessResponse {
   plan_id: string;
   plan_name: string;
-  scenarios_evaluated: number;
-  pass_count: number;
-  degraded_count: number;
-  fail_count: number;
-  unknown_count: number;
-  robustness_ratio: number;
-  primary_vulnerability: string;
-  recommendations: string[];
+  tested_scenarios: number;
+  passed_scenarios: number;
+  degraded_scenarios: number;
+  failed_scenarios: number;
+  unknown_scenarios: number;
+  robustness_score: number;
+  scenarios: ScenarioOutcome[];
+  summary: string;
 }
+
+// Backward compatibility alias for PlanRobustnessResponse
+export type PlanRobustnessAssessmentResponse = PlanRobustnessResponse;
+
+// ── TASK 10: GOVERNANCE, FIELD EVIDENCE & DECISION DOSSIER ──
+
+export interface FieldObservationItem {
+  id: string;
+  entity_type: 'HABITATION' | 'HAZARD_ZONE' | 'CANDIDATE_PARCEL' | 'CANDIDATE_SITE';
+  entity_id: string;
+  observation_type: string;
+  observed_at: string;
+  observer_name?: string | null;
+  observer_role?: string | null;
+  notes: string;
+  evidence_values?: Record<string, any>;
+  data_mode: string;
+  verification_level: 'FIELD_OBSERVED' | 'TECHNICALLY_VERIFIED' | 'AUTHORITY_REVIEWED';
+  verified_by?: string | null;
+  verified_at?: string | null;
+  technical_notes?: string | null;
+  attachments_metadata?: Record<string, any>;
+  source_metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LandStatusItem {
+  id: string;
+  parcel_candidate_id: string;
+  category: string;
+  status: string;
+  source_reference?: string | null;
+  document_reference?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  notes?: string | null;
+  data_mode: string;
+  created_at: string;
+}
+
+export interface ConsultationItem {
+  id: string;
+  habitation_id: string;
+  consultation_date: string;
+  participant_count: number;
+  method: string;
+  questions_responses?: Record<string, any>;
+  concerns?: string[];
+  preferences?: Record<string, any>;
+  source_attachment?: Record<string, any>;
+  verification_status: string;
+  data_mode: string;
+  created_at: string;
+}
+
+export interface GovernanceReviewItem {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  review_stage: string;
+  assigned_to?: string | null;
+  reviewer_role?: string | null;
+  review_notes?: string | null;
+  action_taken?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AnalyticalOverrideItem {
+  id: string;
+  entity_type: 'HABITATION' | 'RISK_ASSESSMENT' | 'CANDIDATE_PARCEL' | 'RELOCATION_PLAN';
+  entity_id: string;
+  field_name: string;
+  original_value: string;
+  override_value: string;
+  reason: string;
+  reviewer: string;
+  timestamp: string;
+}
+
+export interface AuditLogItem {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  user_id: string;
+  details: Record<string, any>;
+  timestamp: string;
+}
+
+export interface DecisionDossierResponse {
+  habitation_id: string;
+  habitation_name: string;
+  district: string;
+  state: string;
+  dossier_id: string;
+  generated_at: string;
+  analysis_version: string;
+  config_version: string;
+  executive_summary: string;
+  risk_profile: Record<string, any>;
+  relocation_assessment: Record<string, any>;
+  candidate_land_discovery: Record<string, any>;
+  candidate_comparison: Array<Record<string, any>>;
+  carrying_capacity: Record<string, any>;
+  relocation_alternatives: Array<Record<string, any>>;
+  scenario_robustness: Record<string, any>;
+  evidence_data_quality: Record<string, any>;
+  verification_required: string[];
+  provenance: Record<string, any>;
+  disclaimer: string;
+}
+
+export interface DataHonestyAuditResponse {
+  counts_by_mode: Record<string, number>;
+  table_breakdown: Record<string, Record<string, number>>;
+  ml_status: Record<string, string>;
+  timestamp: string;
+}
+
 
 
