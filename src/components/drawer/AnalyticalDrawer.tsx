@@ -358,10 +358,10 @@ export function AnalyticalDrawer({ onSelectHabitation, selectedHabitationId }: A
           {activeTab === 'quality' && (
             <div className="p-3 grid grid-cols-3 gap-3 text-[11px]">
               <div className="bg-panel-header p-2.5 rounded-[2px] border border-border-default space-y-1">
-                <div className="text-[10px] text-text-muted uppercase font-bold">INSAR INTERFEROMETRY</div>
-                <div className="text-text-primary">Sentinel-1 Ascending / Descending Pass</div>
-                <div className="text-gis-green">Ground Subsidence Active: Joshimath Sector (4.2mm/mo)</div>
-                <div className="text-[10px] text-text-muted">Last Orbit Pass: 2026-09-27 18:30 UTC</div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">GEOTECHNICAL FIELD EVIDENCE</div>
+                <div className="text-text-primary">Chamoli Field Inspection Registry</div>
+                <div className="text-gis-orange">Ground Subsidence Assessment: Joshimath Sector (Observational)</div>
+                <div className="text-[10px] text-text-muted">Evidence Mode: Benchmark / Preliminary</div>
               </div>
               <div className="bg-panel-header p-2.5 rounded-[2px] border border-border-default space-y-1">
                 <div className="text-[10px] text-text-muted uppercase font-bold">IMD DOPPLER RADAR FEED</div>

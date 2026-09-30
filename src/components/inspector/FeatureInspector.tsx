@@ -458,7 +458,7 @@ export function FeatureInspector({ feature, onClose, onFocusFeature }: FeatureIn
                     </div>
                     <p className="text-[11px] text-text-secondary leading-relaxed bg-panel-header p-2 rounded-[2px] border border-border-subtle font-mono">
                       {riskAssessment?.explanation || (h.riskScore >= 85
-                        ? 'Repeated slope instability detected via InSAR (4.2mm/mo subsidence). Heavy monsoonal saturation elevates debris-flow threshold above critical limit.'
+                        ? 'Repeated slope instability and toe-cutting identified. Heavy monsoonal saturation elevates debris-flow risk above safety threshold.'
                         : 'Steep catchment geometry with alluvial toe-cutting along river bank. Severe exposure during high-precipitation cloudburst episodes.')}
                     </p>
                   </div>

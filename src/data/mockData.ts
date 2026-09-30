@@ -778,7 +778,7 @@ export const operationalAlerts: OperationalAlert[] = [
   { id: 'ALT-002', message: 'Landslide exposure increased following 72-hour rainfall event in Chamoli district', type: 'WEATHER', severity: 'CRITICAL', timestamp: '2026-09-27T22:30:00Z', read: false },
   { id: 'ALT-003', message: 'Candidate Site RS-003 (Karnprayag South) requires field verification — pending since 14 days', type: 'VERIFICATION', severity: 'WATCH', timestamp: '2026-09-27T18:00:00Z', read: false },
   { id: 'ALT-004', message: 'Relocation priority changed: Dungari Hamlet upgraded from Short-Term → Immediate', type: 'PRIORITY_CHANGE', severity: 'HIGH', timestamp: '2026-09-27T14:45:00Z', habitationId: 'HAB-003', read: true },
-  { id: 'ALT-005', message: 'Joshimath Ward-7 ground subsidence rate increased — 4.2mm/day detected via InSAR', type: 'ESCALATION', severity: 'CRITICAL', timestamp: '2026-09-27T10:20:00Z', habitationId: 'HAB-008', read: true },
+  { id: 'ALT-005', message: 'Joshimath Ward-7 ground subsidence rate increased — field geotechnical displacement review requested', type: 'ESCALATION', severity: 'CRITICAL', timestamp: '2026-09-27T10:20:00Z', habitationId: 'HAB-008', read: true },
   { id: 'ALT-006', message: 'Field team completed verification at Pipalkoti Plateau Site (RS-001) — all clear', type: 'FIELD_UPDATE', severity: 'SAFE', timestamp: '2026-09-26T16:30:00Z', read: true },
   { id: 'ALT-007', message: 'Helang Bridge (INF-010) reported damaged — alternate route advisory issued', type: 'FIELD_UPDATE', severity: 'HIGH', timestamp: '2026-09-26T09:00:00Z', read: true },
   { id: 'ALT-008', message: 'IMD forecast: Heavy rainfall warning for Chamoli-Rudraprayag for next 48 hours', type: 'WEATHER', severity: 'HIGH', timestamp: '2026-09-25T20:00:00Z', read: true },
@@ -817,5 +817,5 @@ export const kpiMetrics: KPIMetric[] = [
   { label: 'Immediate Relocation', value: 4, change: 1, changeLabel: 'upgraded this month', icon: 'arrow-up-right', color: 'orange' },
   { label: 'Population Exposed', value: '37,419', change: 8.2, changeLabel: '% increase YoY', icon: 'users', color: 'yellow' },
   { label: 'Candidate Sites', value: 8, change: 3, changeLabel: 'field verified', icon: 'map-pin', color: 'green' },
-  { label: 'Field Verified', value: '62%', change: 12, changeLabel: '% improvement', icon: 'check-circle', color: 'green' },
+  { label: 'Field Verified', value: '3 / 8 Sites', change: 3, changeLabel: 'preliminary verification', icon: 'check-circle', color: 'green' },
 ];

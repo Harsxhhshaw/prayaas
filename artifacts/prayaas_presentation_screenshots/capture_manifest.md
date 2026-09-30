@@ -19,14 +19,14 @@
 | # | Filename | View Description | Target Entity / Context | Key Visible Metrics & Statuses |
 |---|---|---|---|---|
 | 1 | `01_command_centre.png` | Main GIS Command Centre | Chamoli District Study Catchment | Full workstation interface, active layer management drawer (Hazard, Exposure, Red Zones, Relocation Strategy), topographic map controls, study bounds |
-| 2 | `02_raini_assessment.png` | Habitation Risk Assessment Modal | Raini Settlement (`HAB-002`) | Risk Level: **PERMANENT RED** (Composite Risk: **87.0/100**), Primary Driver: Landslide (Slope >42°, InSAR 28 mm/yr), Population: **1,256**, 5-Year Trajectory: **+29**, Confidence: **82%** |
+| 2 | `02_raini_assessment.png` | Habitation Risk Assessment Modal | Raini Settlement (`HAB-002`) | Risk Level: **PERMANENT RED** (Composite Risk: **87.0/100**), Primary Driver: Landslide (Slope >42°, toe-cutting instability), Population: **1,256**, 5-Year Trajectory: **+29**, Confidence: **82%** |
 | 3 | `02b_raini_risk_overview.png` | Comprehensive Habitation Risk Inspector | Raini Settlement (`HAB-002`) | Full-screen detail showing Multi-Hazard Breakdown (Landslide 87, Flash Flood 65, Seismic 72), Household Count: 314, Readiness Cap: $\le 55.0$ |
 | 4 | `03_candidate_discovery_map.png` | Candidate Discovery & Feasibility Layer | Chamoli Feasible Mask ($\le 25^\circ$) | Discovery Run Badge: `Found 2 contiguous candidate parcels (>=2.0 ha)`, Top Suitability: **84.5/100**, Relocation Need: **71.9/100**, Reception Readiness: **55.0/100** (Moderate Readiness Review) |
 | 5 | `04_candidate_detail.png` | Candidate Site Inspection Modal | Chamoli Town Extension (`RS-002`) | Suitability: **78/100**, Carrying Capacity: **6,200 persons**, Area: **62 ha**, Elevation: **1,050 m**, Hazard Buffer: **12.3 km**, Utilities: Road/Water/Grid Connected, Status: **VERIFIED** |
 | 6 | `05_candidate_sites_inventory.png` | Candidate Relocation Sites Table | District Candidate Inventory (`/candidate-sites`) | Full tabular inventory of benchmark reception sites (`RS-001` through `RS-006`), suitability scores (68–84/100), capacities (2,400–6,200), slope, distance, verification states |
 | 7 | `07_relocation_priority_matrix.png` | Relocation Priority Matrix | 13 Red Zone Habitations (`/relocation-priority`) | Prioritization tiers (Immediate, Short-term, Medium-term), risk scores (76–87/100), displaced populations, designated relocation sites, phased timelines |
-| 8 | `08_scenario_lab_workspace.png` | Multi-Hazard Scenario Lab | Parametric Stress Simulator (`/scenario-lab`) | Monte Carlo simulation matrix, dynamic parametric inputs: 24h Rainfall (+65%), Pore Water Pressure (88 kPa), Seismic PGA (0.36g), Road Blockage Probability (78%) |
-| 9 | `09_digital_twin_3d_workspace.png` | 3D Digital Twin Simulation | Physics & Sensor Workspace (`/digital-twin`) | Cartosat 10m DEM mesh, Sentinel-1 InSAR surface displacement, 2D Saint-Venant hydraulic runoff engine, IoT sensor telemetry |
+| 8 | `08_scenario_lab_workspace.png` | Multi-Hazard Scenario Lab | Parametric Stress Simulator (`/scenario-lab`) | Deterministic scenario matrix: Baseline, Water Stress, Population Surge, Road Outage, Candidate Outage, Infrastructure Upgrade |
+| 9 | `09_digital_twin_3d_workspace.png` | 3D Digital Twin Simulation | Physics & Sensor Workspace (`/digital-twin`) | 8-dimension infrastructure and environmental capacity limits evaluation under stressed scenarios |
 | 10 | `10_evidence_layers_pipeline.png` | Data Pipeline & Evidence Feeds | Scientific Ingestion Hub (`/data-sources`) | Primary telemetry feeds, derived analytical evidence layers (DEM, Slope, Aspect, Road Distance, Fault Line Proximity, Stream Drainage Buffer) |
 
 ---
@@ -69,7 +69,7 @@
 ### Task 10: Field Evidence, Satellite Monitoring & Governance Dossier
 - **Status:** **COMPLETE & FROZEN**
 - **Field Evidence Workflow:** Mobile inspection intake with cryptographic hash validation, GPS EXIF verification, and role-based officer sign-off.
-- **Satellite Ingestion:** Automated Sentinel-1/2 InSAR and NDVI anomaly detection pipeline.
+- **Satellite & Change Monitoring:** Optical/NDVI change detection and surface observation schema.
 - **Decision Dossier:** Automated export of end-to-end relocation evidence pack.
 
 ---

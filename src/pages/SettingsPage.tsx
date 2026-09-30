@@ -87,12 +87,12 @@ export function SettingsPage() {
               <span className="text-text-primary">900 seconds (15 min)</span>
             </div>
             <div className="flex justify-between py-1 border-t border-border-subtle">
-              <span>IoT Geotechnical Tiltmeters:</span>
-              <span className="text-text-primary">300 seconds (5 min)</span>
+              <span>Open-Meteo Weather Ingestion:</span>
+              <span className="text-text-primary">Hourly sync</span>
             </div>
             <div className="flex justify-between py-1 border-t border-border-subtle">
-              <span>InSAR Pass Differential Check:</span>
-              <span className="text-text-primary">Daily cron @ 02:00 UTC</span>
+              <span>Field Verification Registry:</span>
+              <span className="text-text-primary">On-demand sync</span>
             </div>
           </div>
         </div>
