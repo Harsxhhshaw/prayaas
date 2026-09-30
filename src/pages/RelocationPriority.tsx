@@ -1,19 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { relocationPriorities } from '../data/mockData';
+import { relocationPriorities as fallbackPriorities } from '../data/mockData';
+import type { RelocationPriority as PriorityItem } from '../types';
+import { api } from '../lib/api';
+import { useAppStore } from '../state/AppContext';
 import { ArrowUpRight } from 'lucide-react';
 
 export function RelocationPriority() {
   const navigate = useNavigate();
+  const { selectedDistrict } = useAppStore();
+  const [priorities, setPriorities] = useState<PriorityItem[]>(fallbackPriorities);
+  const [isLive, setIsLive] = useState(false);
   const [filter, setFilter] = useState('ALL');
 
-  const filtered = relocationPriorities.filter(
+  useEffect(() => {
+    let active = true;
+    api.getRelocationPriorities({ district: selectedDistrict }).then((res) => {
+      if (active) {
+        if (res.data?.items && res.data.items.length > 0) {
+          setPriorities(res.data.items);
+        } else {
+          setPriorities(fallbackPriorities.filter((p) => !selectedDistrict || p.district.toLowerCase() === selectedDistrict.toLowerCase()));
+        }
+        setIsLive(res.isLive);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedDistrict]);
+
+  const filtered = priorities.filter(
     (p) => filter === 'ALL' || p.urgency === filter
   );
 
-  const immediateCount = relocationPriorities.filter((p) => p.urgency === 'IMMEDIATE').length;
-  const shortCount = relocationPriorities.filter((p) => p.urgency === 'SHORT_TERM').length;
-  const mediumCount = relocationPriorities.filter((p) => p.urgency === 'MEDIUM_TERM').length;
+  const immediateCount = priorities.filter((p) => p.urgency === 'IMMEDIATE').length;
+  const shortCount = priorities.filter((p) => p.urgency === 'SHORT_TERM').length;
+  const mediumCount = priorities.filter((p) => p.urgency === 'MEDIUM_TERM').length;
 
   return (
     <div className="h-full flex flex-col bg-workspace text-text-primary p-4 overflow-hidden select-none font-sans">
@@ -22,10 +45,13 @@ export function RelocationPriority() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-bold font-mono uppercase tracking-wider text-text-primary">
-              EVIDENCE-BASED RELOCATION PRIORITY MATRIX
+              EVIDENCE-BASED RELOCATION PRIORITY MATRIX // {selectedDistrict.toUpperCase()}
             </h1>
             <span className="text-[10px] font-mono px-1.5 py-0.5 bg-panel-header border border-border-default text-text-muted rounded-[2px]">
-              {relocationPriorities.length} HABITATIONS SCHEDULED
+              {priorities.length} HABITATIONS SCHEDULED
+            </span>
+            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-[2px] border ${isLive ? 'border-gis-green/30 text-gis-green bg-gis-green/10' : 'border-gis-yellow/30 text-gis-yellow bg-gis-yellow/10'}`}>
+              {isLive ? 'LIVE' : 'DEMO'}
             </span>
           </div>
           <p className="text-xs text-text-muted font-mono mt-0.5">
@@ -43,7 +69,7 @@ export function RelocationPriority() {
                 : 'bg-panel-header border-border-default text-text-muted hover:text-text-primary'
             }`}
           >
-            ALL ({relocationPriorities.length})
+            ALL ({priorities.length})
           </button>
           <button
             onClick={() => setFilter('IMMEDIATE')}

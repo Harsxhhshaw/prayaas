@@ -1,20 +1,33 @@
-import { useEffect, useState } from 'react';
-import { Search, ChevronDown, Radio, Shield, User } from 'lucide-react';
+import { useEffect, useState, useRef, type KeyboardEvent } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Search, ChevronDown, Shield, User } from 'lucide-react';
 import { statesAndDistricts } from '../../data/mockData';
 import type { Habitation } from '../../types';
-import { habitations } from '../../data/mockData';
 import { api } from '../../lib/api';
+import { useAppStore } from '../../state/AppContext';
 
 interface TopBarProps {
   onSelectHabitation?: (habitation: Habitation) => void;
 }
 
 export function TopBar({ onSelectHabitation }: TopBarProps) {
-  const [selectedState, setSelectedState] = useState('Uttarakhand');
-  const [selectedDistrict, setSelectedDistrict] = useState('Chamoli');
+  const {
+    selectedState,
+    setSelectedState,
+    selectedDistrict,
+    setSelectedDistrict,
+    habitations,
+    selectHabitation,
+  } = useAppStore();
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -35,9 +48,50 @@ export function TopBar({ onSelectHabitation }: TopBarProps) {
         (h) =>
           h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           h.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          h.district.toLowerCase().includes(searchQuery.toLowerCase())
+          (h.district && h.district.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : [];
+
+  const handleSelect = (hab: Habitation) => {
+    selectHabitation(hab);
+    onSelectHabitation?.(hab);
+    setSearchQuery('');
+    setIsSearchFocused(false);
+    setSelectedIndex(-1);
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!isSearchFocused || searchResults.length === 0) {
+      if (e.key === 'Escape') {
+        setIsSearchFocused(false);
+        setSearchQuery('');
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = selectedIndex >= 0 ? searchResults[selectedIndex] : searchResults[0];
+      if (target) {
+        handleSelect(target);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsSearchFocused(false);
+      setSearchQuery('');
+      setSelectedIndex(-1);
+      inputRef.current?.blur();
+    }
+  };
 
   return (
     <header className="h-12 bg-panel-bg border-b border-border-default flex items-center justify-between px-3 z-30 select-none shrink-0 text-xs">
@@ -103,17 +157,25 @@ export function TopBar({ onSelectHabitation }: TopBarProps) {
           <div className="flex items-center bg-panel-header border border-border-default focus-within:border-border-active rounded-[2px] px-2 py-1 w-64 transition-colors">
             <Search className="w-3.5 h-3.5 text-text-muted mr-1.5 shrink-0" />
             <input
+              ref={inputRef}
               type="text"
               placeholder="Search features, habitations, zones..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSelectedIndex(-1);
+              }}
+              onKeyDown={handleKeyDown}
               onFocus={() => setIsSearchFocused(true)}
               onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
               className="bg-transparent text-[11px] text-text-primary placeholder:text-text-muted focus:outline-none w-full font-sans"
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedIndex(-1);
+                }}
                 className="text-[10px] text-text-muted hover:text-text-primary"
               >
                 esc
@@ -124,17 +186,17 @@ export function TopBar({ onSelectHabitation }: TopBarProps) {
           {/* Search Dropdown */}
           {isSearchFocused && searchResults.length > 0 && (
             <div className="absolute top-full left-0 mt-1 w-80 bg-panel-bg border border-border-default rounded-[2px] shadow-lg py-1 z-50">
-              <div className="px-2 py-1 text-[10px] font-mono text-text-muted uppercase border-b border-border-subtle">
-                Matching Habitations ({searchResults.length})
+              <div className="px-2 py-1 text-[10px] font-mono text-text-muted uppercase border-b border-border-subtle flex justify-between">
+                <span>Matching Habitations ({searchResults.length})</span>
+                <span className="text-[9px]">↑↓ to navigate · ↵ to select</span>
               </div>
-              {searchResults.slice(0, 6).map((hab) => (
+              {searchResults.slice(0, 8).map((hab, idx) => (
                 <button
                   key={hab.id}
-                  onClick={() => {
-                    onSelectHabitation?.(hab);
-                    setSearchQuery('');
-                  }}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-surface-hover text-left transition-colors text-xs"
+                  onClick={() => handleSelect(hab)}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 text-left transition-colors text-xs ${
+                    selectedIndex === idx ? 'bg-surface-hover border-l-2 border-border-active' : 'hover:bg-surface-hover'
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <span

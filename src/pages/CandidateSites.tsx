@@ -1,9 +1,38 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { candidateSites } from '../data/mockData';
+import { candidateSites as fallbackSites } from '../data/mockData';
+import type { CandidateRelocationSite } from '../types';
+import { api } from '../lib/api';
+import { useAppStore } from '../state/AppContext';
 import { ArrowUpRight, CheckCircle2, XCircle } from 'lucide-react';
 
 export function CandidateSites() {
   const navigate = useNavigate();
+  const { selectedDistrict } = useAppStore();
+  const [sites, setSites] = useState<CandidateRelocationSite[]>(fallbackSites);
+  const [isLive, setIsLive] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.getCandidateSites(selectedDistrict).then((res) => {
+      if (active) {
+        if (res.data?.items && res.data.items.length > 0) {
+          setSites(res.data.items);
+        } else {
+          setSites(fallbackSites.filter((s) => !selectedDistrict || s.district.toLowerCase() === selectedDistrict.toLowerCase()));
+        }
+        setIsLive(res.isLive);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedDistrict]);
 
   return (
     <div className="h-full flex flex-col bg-workspace text-text-primary p-4 overflow-hidden select-none font-sans">
@@ -12,10 +41,13 @@ export function CandidateSites() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-bold font-mono uppercase tracking-wider text-text-primary">
-              CANDIDATE RELOCATION SITES INVENTORY
+              CANDIDATE RELOCATION SITES // {selectedDistrict.toUpperCase()}
             </h1>
             <span className="text-[10px] font-mono px-1.5 py-0.5 bg-gis-green/10 border border-gis-green/30 text-gis-green rounded-[2px] font-bold">
-              {candidateSites.length} IDENTIFIED PARCELS
+              {sites.length} SITES
+            </span>
+            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-[2px] border ${isLive ? 'border-gis-green/30 text-gis-green bg-gis-green/10' : 'border-gis-yellow/30 text-gis-yellow bg-gis-yellow/10'}`}>
+              {isLive ? 'LIVE' : 'DEMO'}
             </span>
           </div>
           <p className="text-xs text-text-muted font-mono mt-0.5">
@@ -51,7 +83,7 @@ export function CandidateSites() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle text-[11px]">
-            {candidateSites.map((site) => (
+            {sites.map((site) => (
               <tr key={site.id} className="hover:bg-surface-hover text-text-secondary transition-colors">
                 <td className="py-2 px-3 text-text-muted font-bold">{site.id}</td>
                 <td className="py-2 px-3 font-semibold text-text-primary">{site.name}</td>

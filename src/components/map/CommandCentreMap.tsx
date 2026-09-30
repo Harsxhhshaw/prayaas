@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import type { Map as LeafletMap } from 'leaflet';
 import {
   MapContainer,
   TileLayer,
@@ -20,8 +21,15 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { MapLayer, Habitation, RedZone, CandidateRelocationSite, InfrastructurePoint, CandidateParcelItem } from '../../types';
-import { habitations, redZones, candidateSites, infrastructurePoints, defaultMapLayers } from '../../data/mockData';
+import {
+  habitations as fallbackHabitations,
+  redZones as fallbackRedZones,
+  candidateSites as fallbackCandidateSites,
+  infrastructurePoints as fallbackInfrastructure,
+  defaultMapLayers,
+} from '../../data/mockData';
 import { api } from '../../lib/api';
+import { useAppStore } from '../../state/AppContext';
 import { MapLayerControl } from './MapLayerControl';
 import type { SelectedFeature } from '../inspector/FeatureInspector';
 
@@ -98,27 +106,13 @@ function MapCoordinateTracker({
   return null;
 }
 
-// Custom Zoom Controls Hook Wrapper
-function CustomZoomControls() {
+// Map Instance Capture Component
+function MapInstanceCapture({ onMapReady }: { onMapReady: (map: LeafletMap) => void }) {
   const map = useMap();
-  return (
-    <div className="flex flex-col border border-border-default rounded-[2px] overflow-hidden bg-panel-bg shadow-lg">
-      <button
-        onClick={() => map.zoomIn()}
-        className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors border-b border-border-subtle"
-        title="Zoom In"
-      >
-        <Plus className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={() => map.zoomOut()}
-        className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
-        title="Zoom Out"
-      >
-        <Minus className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
+  useEffect(() => {
+    onMapReady(map);
+  }, [map, onMapReady]);
+  return null;
 }
 
 export function CommandCentreMap({
@@ -126,6 +120,8 @@ export function CommandCentreMap({
   selectedFeature,
   focusPosition,
 }: CommandCentreMapProps) {
+  const { selectedDistrict, habitations: storeHabitations } = useAppStore();
+  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [layers, setLayers] = useState<MapLayer[]>(defaultMapLayers);
   const [opacity, setOpacity] = useState(0.85);
   const [isLayerPanelOpen, setIsLayerPanelOpen] = useState(false);
@@ -135,6 +131,10 @@ export function CommandCentreMap({
   const [measuredDistance, setMeasuredDistance] = useState<number | null>(null);
 
   const [mouseCoords, setMouseCoords] = useState({ lat: 30.42, lng: 79.35, zoom: 10 });
+  const [candidateSites, setCandidateSites] = useState<CandidateRelocationSite[]>(fallbackCandidateSites);
+  const [redZones, setRedZones] = useState<RedZone[]>(fallbackRedZones);
+  const [infrastructurePoints, setInfrastructurePoints] = useState<InfrastructurePoint[]>(fallbackInfrastructure);
+  const [candidateParcels, setCandidateParcels] = useState<CandidateParcelItem[]>([]);
 
   const initialCenter: [number, number] = [30.43, 79.35];
 
@@ -146,15 +146,35 @@ export function CommandCentreMap({
 
   const isLayerEnabled = (id: string) => layers.find((l) => l.id === id)?.enabled ?? false;
 
-  const [candidateParcels, setCandidateParcels] = useState<CandidateParcelItem[]>([]);
-
+  // Re-fetch district-dependent layers when district changes
   useEffect(() => {
+    let active = true;
+    api.getCandidateSites(selectedDistrict).then((res) => {
+      if (active && res.data?.items) {
+        setCandidateSites(res.data.items);
+      }
+    });
+    api.getHazardZones().then((res) => {
+      if (active && res.data?.items) {
+        setRedZones(res.data.items);
+      }
+    });
+    api.getInfrastructure().then((res) => {
+      if (active && res.data?.items) {
+        setInfrastructurePoints(res.data.items);
+      }
+    });
     api.getCandidateParcels().then((res) => {
-      if (res.data?.items && res.data.items.length > 0) {
+      if (active && res.data?.items && res.data.items.length > 0) {
         setCandidateParcels(res.data.items);
       }
     });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [selectedDistrict]);
+
+  const habitations = storeHabitations.length > 0 ? storeHabitations : fallbackHabitations;
 
   const selectedId =
     selectedFeature?.type === 'HABITATION'
@@ -177,9 +197,10 @@ export function CommandCentreMap({
         center={initialCenter}
         zoom={10}
         zoomControl={false}
-        attributionControl={false}
+        attributionControl={true}
         className="w-full h-full z-0"
       >
+        <MapInstanceCapture onMapReady={setMapInstance} />
         {/* Basemap Tiles (Working Esri, zero watermark, zero key) */}
         <TileLayer
           key={activeBasemap.base}
@@ -544,7 +565,24 @@ export function CommandCentreMap({
         </button>
 
         {/* Zoom Controls */}
-        <CustomZoomControls />
+        <div className="flex flex-col border border-border-default rounded-[2px] overflow-hidden bg-panel-bg shadow-lg">
+          <button
+            onClick={() => mapInstance?.zoomIn()}
+            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors border-b border-border-subtle"
+            title="Zoom In"
+            aria-label="Zoom in"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => mapInstance?.zoomOut()}
+            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+            title="Zoom Out"
+            aria-label="Zoom out"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Custom Layer Control Drawer */}

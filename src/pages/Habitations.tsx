@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, Download, ArrowUpRight } from 'lucide-react';
-import { habitations } from '../data/mockData';
-import type { UrgencyLevel } from '../types';
+import type { UrgencyLevel, Habitation } from '../types';
+import { useAppStore } from '../state/AppContext';
 
 export function Habitations() {
   const navigate = useNavigate();
+  const { habitations, selectedDistrict, selectHabitation } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<string>('ALL');
 
@@ -13,7 +14,7 @@ export function Habitations() {
     const matchesSearch =
       h.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       h.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      h.district.toLowerCase().includes(searchTerm.toLowerCase());
+      (h.district && h.district.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesUrgency = urgencyFilter === 'ALL' || h.urgency === urgencyFilter;
     return matchesSearch && matchesUrgency;
   });
@@ -25,7 +26,7 @@ export function Habitations() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-bold font-mono uppercase tracking-wider text-text-primary">
-              HABITATIONS REGISTRY // CHAMOLI STUDY AREA
+              HABITATIONS REGISTRY // {selectedDistrict.toUpperCase()} STUDY AREA
             </h1>
             <span className="text-[10px] font-mono px-1.5 py-0.5 bg-panel-header border border-border-default text-text-muted rounded-[2px]">
               {filtered.length} ENTRIES
@@ -158,7 +159,10 @@ export function Habitations() {
                   </td>
                   <td className="py-2 px-3 text-center">
                     <button
-                      onClick={() => navigate('/')}
+                      onClick={() => {
+                        selectHabitation(hab);
+                        navigate('/');
+                      }}
                       className="text-[10px] text-gis-blue hover:underline"
                     >
                       Inspect in Map →
