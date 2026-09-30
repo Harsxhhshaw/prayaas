@@ -97,3 +97,75 @@ def test_risk_explanation_payload(db):
     assert len(explanation.component_weights) >= 6
     assert len(explanation.sources_used) >= 3
     assert explanation.narrative_explanation is not None
+
+
+def test_missing_inputs_become_unknown_evidence_and_penalize_confidence(db):
+    """Missing distance, elevation, or demographic inputs must NOT be replaced with numeric fallbacks.
+    They must become UNKNOWN evidence, penalize confidence, and never produce PASS on critical dimensions.
+    """
+    engine = RiskEngine(db)
+
+    # Create temporary habitation with missing inputs
+    test_hab = Habitation(
+        id="HAB-TEST-UNKNOWN",
+        name="Unknown Test Settlement",
+        district="Chamoli",
+        state="Uttarakhand",
+        population=450,
+        households=90,
+        risk_score=75,
+        elevation=None,  # Missing elevation
+        nearest_road=None,  # Missing road distance
+        nearest_hospital=None,  # Missing hospital distance
+        nearest_school=None,  # Missing school distance
+        risk_history=[],
+        hazard_scores=[],
+    )
+    db.add(test_hab)
+
+    assessment = engine.assess_habitation("HAB-TEST-UNKNOWN")
+
+    # 1. Missing inputs must be flagged as UNKNOWN evidence
+    assert "ELEVATION_DATA_UNKNOWN" in assessment.reason_codes
+    assert "ROAD_DISTANCE_UNKNOWN" in assessment.reason_codes
+    assert "HOSPITAL_DISTANCE_UNKNOWN" in assessment.reason_codes
+    assert "SCHOOL_DISTANCE_UNKNOWN" in assessment.reason_codes
+
+    # 2. Confidence must be heavily penalized
+    assert assessment.confidence_score < 50.0
+
+    # 3. Input snapshot must honestly record None (never fabricated fallbacks like 1800 or 5.0)
+    assert assessment.input_snapshot["elevation"] is None
+    assert assessment.input_snapshot["nearest_road"] is None
+    assert assessment.input_snapshot["nearest_hospital"] is None
+
+    # 4. Critical dimensions in sustainability breakdown must be UNKNOWN, NEVER PASS or fabricated VALUE
+    dims = assessment.input_snapshot["sustainability_dimensions"]
+    assert dims["road_reliability"]["status"] == "UNKNOWN"
+    assert dims["road_reliability"]["value"] is None
+    assert dims["health_accessibility"]["status"] == "UNKNOWN"
+    assert dims["health_accessibility"]["value"] is None
+    assert dims["education_access"]["status"] == "UNKNOWN"
+    assert dims["education_access"]["value"] is None
+    assert dims["water_security"]["status"] == "UNKNOWN"
+    assert dims["water_security"]["value"] is None
+
+
+def test_missing_critical_dimensions_never_pass():
+    """calculate_sustainability_index must never return VALUE or PASS for unmeasured dimensions."""
+    _, confidence, breakdown = calculate_sustainability_index(
+        elevation=None,
+        nearest_road_km=None,
+        nearest_hospital_km=None,
+        nearest_school_km=None,
+        baseline_hazard=60.0,
+        vulnerability_score=50.0,
+        return_details=True,
+    )
+
+    assert breakdown["road_reliability"]["status"] == "UNKNOWN"
+    assert breakdown["health_accessibility"]["status"] == "UNKNOWN"
+    assert breakdown["education_access"]["status"] == "UNKNOWN"
+    assert breakdown["water_security"]["status"] == "UNKNOWN"
+    assert confidence < 60.0
+

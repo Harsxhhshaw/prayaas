@@ -18,8 +18,9 @@ The script is strictly idempotent and safe to rerun multiple times.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from uuid import uuid4
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, MultiPolygon
 from geoalchemy2.shape import from_shape
 from sqlalchemy import func
 
@@ -41,6 +42,8 @@ from app.models import (
     EvidenceLayer,
     HazardModel,
 )
+from app.models.candidate_discovery import CandidateDiscoveryRun, CandidateParcel
+from app.models.enums import DataMode
 from app.services.risk.engine import RiskEngine
 from app.services.relocation.engine import RelocationEngine
 
@@ -1346,6 +1349,118 @@ def seed_database(db=None) -> dict[str, int]:
                 )
                 db.add(vp_obj)
                 counts["vulnerability_profiles"] += 1
+
+        db.flush()
+
+        # 10.5. Frozen Candidate Discovery Run & Parcels for Raini (HAB-002)
+        # Real discovered parcel count across 706.86 km² AOI is 182 candidate parcels (28,754.5 ha feasible area)
+        existing_run = db.query(CandidateDiscoveryRun).filter(CandidateDiscoveryRun.id == "CDR-8E12008ADCC0").first()
+        if not existing_run:
+            now_freeze = datetime(2026, 9, 30, 0, 0, tzinfo=timezone.utc)
+            cd_run = CandidateDiscoveryRun(
+                id="CDR-8E12008ADCC0",
+                origin_habitation_id="HAB-002",
+                analysis_version="PRAYAAS-CANDIDATE-1.0",
+                config_version="1.0.0",
+                search_radius_km=15.0,
+                status="COMPLETED",
+                started_at=now_freeze,
+                finished_at=now_freeze,
+                created_at=now_freeze,
+                updated_at=now_freeze,
+                cells_evaluated=70686,
+                cells_excluded=41932,
+                total_aoi_area_sq_km=706.86,
+                excluded_area_sq_km=419.32,
+                feasible_area_sq_km=287.54,
+                feasible_percent=40.7,
+                candidate_count=182,
+            )
+            db.add(cd_run)
+            counts["candidate_discovery_runs"] = counts.get("candidate_discovery_runs", 0) + 1
+
+            p_poly = MultiPolygon([Polygon([(79.55, 30.50), (79.56, 30.50), (79.56, 30.51), (79.55, 30.51), (79.55, 30.50)])])
+            p_geom = from_shape(p_poly, srid=4326)
+            c_geom = from_shape(Point(79.555, 30.505), srid=4326)
+
+            parcels_data = [
+                {
+                    "id": "PARCEL-5958B764DA60",
+                    "rank": 1,
+                    "area_hectares": 20.0,
+                    "area_sq_km": 0.20,
+                    "distance_km": 0.46,
+                    "mean_slope_degrees": 8.5,
+                    "suitability_score": 88.5,
+                    "robustness_score": 75.0,
+                    "rank_stability": 95.0,
+                    "confidence_score": 75.0,
+                    "criteria_scores": {"ROAD_ACCESS": 85.0, "WATER_ACCESS": 80.0},
+                    "reason_codes": ["OPTIMAL_DISTANCE", "SAFE_SLOPE"],
+                    "limitations": ["ROAD_CONNECTIVITY_GAP"],
+                },
+                {
+                    "id": "PARCEL-E3247A11E0EC",
+                    "rank": 2,
+                    "area_hectares": 2.0,
+                    "area_sq_km": 0.02,
+                    "distance_km": 9.35,
+                    "mean_slope_degrees": 9.9,
+                    "suitability_score": 91.2,
+                    "robustness_score": 61.5,
+                    "rank_stability": 85.0,
+                    "confidence_score": 37.8,
+                    "criteria_scores": {"ROAD_ACCESS": 70.0, "WATER_ACCESS": 75.0},
+                    "reason_codes": ["HIGH_SUITABILITY"],
+                    "limitations": ["LIMITED_AREA"],
+                },
+                {
+                    "id": "PARCEL-287BBE825053",
+                    "rank": 3,
+                    "area_hectares": 18.0,
+                    "area_sq_km": 0.18,
+                    "distance_km": 8.85,
+                    "mean_slope_degrees": 11.0,
+                    "suitability_score": 85.0,
+                    "robustness_score": 68.0,
+                    "rank_stability": 88.0,
+                    "confidence_score": 60.0,
+                    "criteria_scores": {"ROAD_ACCESS": 65.0, "WATER_ACCESS": 70.0},
+                    "reason_codes": ["EXPANSION_CAPACITY"],
+                    "limitations": ["MODERATE_SLOPE"],
+                },
+            ]
+
+            for pd in parcels_data:
+                existing_p = db.query(CandidateParcel).filter(CandidateParcel.id == pd["id"]).first()
+                if not existing_p:
+                    cp_obj = CandidateParcel(
+                        id=pd["id"],
+                        discovery_run_id="CDR-8E12008ADCC0",
+                        origin_habitation_id="HAB-002",
+                        geom=p_geom,
+                        centroid=c_geom,
+                        area_sq_km=pd["area_sq_km"],
+                        area_hectares=pd["area_hectares"],
+                        distance_from_origin_km=pd["distance_km"],
+                        mean_slope_degrees=pd["mean_slope_degrees"],
+                        suitability_score=pd["suitability_score"],
+                        robustness_score=pd["robustness_score"],
+                        rank_stability=pd["rank_stability"],
+                        rank=pd["rank"],
+                        status="REQUIRES_FIELD_REVIEW",
+                        confidence_score=pd["confidence_score"],
+                        exclusion_summary={"SLOPE": "PASS", "HAZARD": "PASS", "SETTLEMENT": "PASS"},
+                        criteria_scores=pd["criteria_scores"],
+                        reason_codes=pd["reason_codes"],
+                        limitations=pd["limitations"],
+                        explanation={},
+                        data_mode=DataMode.MODELED.value,
+                        created_at=now_freeze,
+                        updated_at=now_freeze,
+                    )
+                    db.add(cp_obj)
+                    counts["candidate_parcels"] = counts.get("candidate_parcels", 0) + 1
 
         db.flush()
 

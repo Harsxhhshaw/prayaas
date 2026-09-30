@@ -17,6 +17,7 @@ from app.models.relocation_priority import RelocationPriority
 from app.models.risk import RiskAssessment
 from app.services.relocation.config import DEFAULT_RELOCATION_CONFIG, RelocationEngineConfig
 from app.services.risk.engine import RiskEngine
+from app.services.risk.semantics import calculate_available_weighted_score
 
 
 
@@ -182,7 +183,11 @@ class RelocationEngine:
         history = risk_assessment.history_score
         trend = risk_assessment.trend_score
         isolation = risk_assessment.adaptive_capacity_deficit_score
-        sustainability_deficit = max(0.0, 100.0 - risk_assessment.sustainability_index)
+        sustainability_deficit = (
+            max(0.0, 100.0 - risk_assessment.sustainability_index)
+            if risk_assessment.sustainability_index is not None
+            else None
+        )
 
         need_components = {
             "baseline_structural_risk": structural_risk,
@@ -193,14 +198,24 @@ class RelocationEngine:
             "sustainability_deficit": sustainability_deficit,
         }
 
-        need_raw = (
-            (self.config.NEED_STRUCTURAL_RISK_WEIGHT * structural_risk)
-            + (self.config.NEED_VULNERABILITY_WEIGHT * vulnerability)
-            + (self.config.NEED_DISASTER_HISTORY_WEIGHT * history)
-            + (self.config.NEED_TREND_WEIGHT * trend)
-            + (self.config.NEED_ISOLATION_WEIGHT * isolation)
-            + (self.config.NEED_SUSTAINABILITY_DEFICIT_WEIGHT * sustainability_deficit)
-        )
+        need_parts: dict[str, float | None] = {
+            "baseline_structural_risk": structural_risk,
+            "vulnerability": vulnerability,
+            "history": history,
+            "trend": trend,
+            "isolation_deficit": isolation,
+            "sustainability_deficit": sustainability_deficit,
+        }
+        need_weights = {
+            "baseline_structural_risk": self.config.NEED_STRUCTURAL_RISK_WEIGHT,
+            "vulnerability": self.config.NEED_VULNERABILITY_WEIGHT,
+            "history": self.config.NEED_DISASTER_HISTORY_WEIGHT,
+            "trend": self.config.NEED_TREND_WEIGHT,
+            "isolation_deficit": self.config.NEED_ISOLATION_WEIGHT,
+            "sustainability_deficit": self.config.NEED_SUSTAINABILITY_DEFICIT_WEIGHT,
+        }
+        need_val, _, _ = calculate_available_weighted_score(need_parts, need_weights)
+        need_raw = need_val if need_val is not None else (structural_risk or 50.0)
         need_score = round(max(5.0, min(100.0, need_raw)), 1)
 
         # ── 3. Calculate READINESS SCORE & Apply Strict Caps ──

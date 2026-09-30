@@ -133,6 +133,7 @@ class RiskEngine:
         hazard_list = normalize_hazard_scores(hab.hazard_scores, district=hab.district, state=hab.state)
         dominant_hazard = "LANDSLIDE"
         reason_codes: list[str] = []
+        missing_components: list[str] = []
 
         # Filter only assessed hazards with real VALUE status (exclude UNKNOWN and NOT_APPLICABLE)
         active_hazards = [
@@ -175,47 +176,113 @@ class RiskEngine:
         )
 
         # ── 4. Exposure Score ──
-        pop = float(hab.population or 0.0)
-        pop_density = float(v_profile.population_density) if (v_profile and v_profile.population_density is not None) else (pop / 2.0)
-        exposure_raw = min(100.0, (pop / 15.0) + (pop_density * 0.3) + 20.0)
-        exposure_score = round(max(10.0, min(100.0, exposure_raw)), 1)
+        if hab.population is not None:
+            pop = float(hab.population)
+            pop_density = float(v_profile.population_density) if (v_profile and v_profile.population_density is not None) else (pop / 2.0)
+            exposure_raw = min(100.0, (pop / 15.0) + (pop_density * 0.3) + 20.0)
+            exposure_score = round(max(10.0, min(100.0, exposure_raw)), 1)
+        else:
+            exposure_score = None
+            reason_codes.append("POPULATION_DATA_UNKNOWN")
+            missing_components.append("population")
 
         # ── 5. Vulnerability Score ──
         if v_profile:
-            c_share = float(v_profile.children_share or 0.0)
-            e_share = float(v_profile.elderly_share or 0.0)
-            d_share = float(v_profile.disability_share or 0.0)
-            demographic_vuln = (
-                (c_share * 100.0) * 0.35
-                + (e_share * 100.0) * 0.40
-                + (d_share * 100.0) * 0.25
-            )
-            h_vuln = float(v_profile.housing_vulnerability or 0.0)
-            iso = float(v_profile.isolation_score or 0.0)
-            vulnerability_score = (
-                (demographic_vuln * 0.40)
-                + (h_vuln * 0.35)
-                + (iso * 0.25)
-            )
-            if h_vuln > 70.0:
-                reason_codes.append("KUCCHA_HOUSING_VULNERABILITY")
+            demo_parts: dict[str, float] = {}
+            demo_weights: dict[str, float] = {}
+            if v_profile.children_share is not None:
+                demo_parts["children"] = float(v_profile.children_share) * 100.0
+                demo_weights["children"] = 0.35
+            else:
+                reason_codes.append("CHILDREN_SHARE_UNKNOWN")
+                missing_components.append("v_profile_children_share")
+
+            if v_profile.elderly_share is not None:
+                demo_parts["elderly"] = float(v_profile.elderly_share) * 100.0
+                demo_weights["elderly"] = 0.40
+            else:
+                reason_codes.append("ELDERLY_SHARE_UNKNOWN")
+                missing_components.append("v_profile_elderly_share")
+
+            if v_profile.disability_share is not None:
+                demo_parts["disability"] = float(v_profile.disability_share) * 100.0
+                demo_weights["disability"] = 0.25
+            else:
+                reason_codes.append("DISABILITY_SHARE_UNKNOWN")
+                missing_components.append("v_profile_disability_share")
+
+            demo_vuln_score, _, _ = calculate_available_weighted_score(demo_parts, demo_weights)
+
+            vuln_parts: dict[str, float] = {}
+            vuln_weights: dict[str, float] = {}
+            if demo_vuln_score is not None:
+                vuln_parts["demo"] = demo_vuln_score
+                vuln_weights["demo"] = 0.40
+
+            if v_profile.housing_vulnerability is not None:
+                h_val = float(v_profile.housing_vulnerability)
+                vuln_parts["housing"] = h_val
+                vuln_weights["housing"] = 0.35
+                if h_val > 70.0:
+                    reason_codes.append("KUCCHA_HOUSING_VULNERABILITY")
+            else:
+                reason_codes.append("HOUSING_VULNERABILITY_UNKNOWN")
+                missing_components.append("housing_vulnerability")
+
+            if v_profile.isolation_score is not None:
+                vuln_parts["isolation"] = float(v_profile.isolation_score)
+                vuln_weights["isolation"] = 0.25
+            else:
+                reason_codes.append("ISOLATION_SCORE_UNKNOWN")
+                missing_components.append("isolation_score")
+
+            v_calc, _, _ = calculate_available_weighted_score(vuln_parts, vuln_weights)
+            vulnerability_score = round(max(10.0, min(100.0, v_calc)), 1) if v_calc is not None else float(hab.vulnerability_score or 45.0)
         else:
             vulnerability_score = float(hab.vulnerability_score or 45.0)
 
-        vulnerability_score = round(max(10.0, min(100.0, vulnerability_score)), 1)
-
         # ── 6. Adaptive Capacity Deficit ──
-        road_km = float(hab.nearest_road) if hab.nearest_road is not None else 5.0
-        hosp_km = float(hab.nearest_hospital) if hab.nearest_hospital is not None else 10.0
-        school_km = float(hab.nearest_school) if hab.nearest_school is not None else 5.0
-        access_score = max(0.0, 100.0 - (road_km * 5.0 + hosp_km * 2.5 + school_km * 2.0))
-        adaptive_capacity_score = round(max(5.0, min(95.0, access_score)), 1)
-        adaptive_capacity_deficit_score = round(100.0 - adaptive_capacity_score, 1)
+        avail_weight = 0.0
+        deduction_sum = 0.0
 
-        if road_km > 3.0:
-            reason_codes.append("SEVERE_ROAD_ISOLATION")
-        if hosp_km > 15.0:
-            reason_codes.append("HEALTHCARE_ACCESS_CRITICAL")
+        if hab.nearest_road is not None:
+            road_km = float(hab.nearest_road)
+            deduction_sum += road_km * 5.0
+            avail_weight += 5.0
+            if road_km > 3.0:
+                reason_codes.append("SEVERE_ROAD_ISOLATION")
+        else:
+            reason_codes.append("ROAD_DISTANCE_UNKNOWN")
+            missing_components.append("nearest_road")
+
+        if hab.nearest_hospital is not None:
+            hosp_km = float(hab.nearest_hospital)
+            deduction_sum += hosp_km * 2.5
+            avail_weight += 2.5
+            if hosp_km > 15.0:
+                reason_codes.append("HEALTHCARE_ACCESS_CRITICAL")
+        else:
+            reason_codes.append("HOSPITAL_DISTANCE_UNKNOWN")
+            missing_components.append("nearest_hospital")
+
+        if hab.nearest_school is not None:
+            school_km = float(hab.nearest_school)
+            deduction_sum += school_km * 2.0
+            avail_weight += 2.0
+        else:
+            reason_codes.append("SCHOOL_DISTANCE_UNKNOWN")
+            missing_components.append("nearest_school")
+
+        if avail_weight > 0.0:
+            deduction = deduction_sum * (9.5 / avail_weight)
+            access_score = max(0.0, 100.0 - deduction)
+            adaptive_capacity_score = round(max(5.0, min(95.0, access_score)), 1)
+            adaptive_capacity_deficit_score = round(100.0 - adaptive_capacity_score, 1)
+        else:
+            adaptive_capacity_score = None
+            adaptive_capacity_deficit_score = None
+            reason_codes.append("ADAPTIVE_CAPACITY_UNKNOWN")
+            missing_components.append("adaptive_capacity")
 
         # ── 7. History Score (UNKNOWN if no historical records exist) ──
         history_list = hab.risk_history if isinstance(hab.risk_history, list) else []
@@ -267,46 +334,82 @@ class RiskEngine:
             "trend": trend_score,
         }
 
-        weighted_score, avail_w_sum, missing_components = calculate_available_weighted_score(values, weights)
+        weighted_score, avail_w_sum, missing_components_from_calc = calculate_available_weighted_score(values, weights)
         weighted_sum = weighted_score if weighted_score is not None else blended_hazard
 
         # Baseline structural risk (independent of real-time weather)
-        baseline_structural_risk = round(
-            (0.40 * baseline_hazard)
-            + (0.25 * exposure_score)
-            + (0.20 * vulnerability_score)
-            + (0.15 * adaptive_capacity_deficit_score),
-            (1),
-        )
+        baseline_parts: dict[str, float | None] = {
+            "hazard": baseline_hazard,
+            "exposure": exposure_score,
+            "vulnerability": vulnerability_score,
+            "adaptive_deficit": adaptive_capacity_deficit_score,
+        }
+        baseline_weights = {
+            "hazard": 0.40,
+            "exposure": 0.25,
+            "vulnerability": 0.20,
+            "adaptive_deficit": 0.15,
+        }
+        baseline_struct_score, _, _ = calculate_available_weighted_score(baseline_parts, baseline_weights)
+        baseline_structural_risk = round(baseline_struct_score if baseline_struct_score is not None else baseline_hazard, 1)
 
         current_dynamic_risk = round(min(100.0, weighted_sum + compound_adjustment), 1)
         composite_risk_score = current_dynamic_risk
 
         # ── 11. Multi-Method Model Agreement Evaluation ──
-        # AHP susceptibility evaluation
-        elevation_val = float(hab.elevation) if hab.elevation is not None else 1800.0
-        local_relief_slope = min(65.0, max(5.0, (elevation_val * 0.015 * 0.4) + 18.0))
-        ahp_model = AHPSusceptibilityModel()
-        ahp_res = ahp_model.evaluate({
-            "slope": local_relief_slope,
-            "rainfall": rainfall_24h,
-            "road_distance": road_km,
-        })
+        if hab.elevation is not None:
+            elevation_val = float(hab.elevation)
+            local_relief_slope = min(65.0, max(5.0, (elevation_val * 0.015 * 0.4) + 18.0))
+            ahp_model = AHPSusceptibilityModel()
+            road_dist_for_ahp = float(hab.nearest_road) if hab.nearest_road is not None else None
+            ahp_res = ahp_model.evaluate({
+                "slope": local_relief_slope,
+                "rainfall": rainfall_24h,
+                "road_distance": road_dist_for_ahp,
+            })
 
-        # Frequency Ratio susceptibility evaluation
-        fr_model = FrequencyRatioModel()
-        fr_res = fr_model.predict_susceptibility(
-            slope_deg=local_relief_slope,
-            rainfall_mm=rainfall_24h,
-        )
+            fr_model = FrequencyRatioModel()
+            fr_res = fr_model.predict_susceptibility(
+                slope_deg=local_relief_slope,
+                rainfall_mm=rainfall_24h,
+            )
 
-        agreement_engine = ModelAgreementEngine()
-        agreement_eval = agreement_engine.evaluate_agreement({
-            "AHP": ahp_res.get("score"),
-            "Frequency Ratio": fr_res.get("score"),
-        })
+            agreement_engine = ModelAgreementEngine()
+            agreement_eval = agreement_engine.evaluate_agreement({
+                "AHP": ahp_res.get("score"),
+                "Frequency Ratio": fr_res.get("score"),
+            })
+        else:
+            reason_codes.append("ELEVATION_DATA_UNKNOWN")
+            missing_components.append("elevation")
+            agreement_eval = {
+                "agreement_status": "UNKNOWN",
+                "agreement_score": 0.0,
+                "agreement_level": "UNKNOWN",
+                "confidence_penalty": 15.0,
+                "reason_codes": ["MODEL_AGREEMENT_UNKNOWN", "ELEVATION_DATA_UNKNOWN"],
+                "scores": {"AHP": None, "Frequency Ratio": None},
+            }
 
         # ── 12. Assessment Confidence Evaluation ──
+        is_demo_complete = (
+            hab.population is not None
+            and hab.population > 0
+            and hab.households is not None
+            and hab.households > 0
+            and (
+                v_profile is None
+                or (
+                    v_profile.children_share is not None
+                    and v_profile.elderly_share is not None
+                    and v_profile.disability_share is not None
+                    and v_profile.housing_vulnerability is not None
+                )
+            )
+        )
+
+        all_missing_comps = list(set(missing_components + missing_components_from_calc))
+
         confidence_score, conf_reasons, conf_rationale = calculate_risk_confidence(
             has_vulnerability_profile=v_profile is not None,
             vulnerability_profile_mode=v_profile.data_mode if v_profile else None,
@@ -314,8 +417,8 @@ class RiskEngine:
             observation_mode=recent_obs[0].data_mode if recent_obs else None,
             hazard_scores_count=len(active_hazards),
             risk_history_count=len(history_list),
-            is_demographics_complete=hab.population > 0 and hab.households > 0,
-            missing_components=missing_components,
+            is_demographics_complete=is_demo_complete,
+            missing_components=all_missing_comps,
             model_agreement_penalty=agreement_eval["confidence_penalty"],
             model_agreement_reason=agreement_eval["reason_codes"][0] if agreement_eval["confidence_penalty"] > 0 else None,
         )
@@ -368,12 +471,16 @@ class RiskEngine:
             reason_codes.append("IN_SITU_MITIGATION_INFEASIBLE")
 
         # ── 15. Deterministic Explanation Narrative ──
+        exp_str = f"{exposure_score:.1f}" if exposure_score is not None else "UNKNOWN"
+        vuln_str = f"{vulnerability_score:.1f}" if vulnerability_score is not None else "UNKNOWN"
+        adapt_str = f"{adaptive_capacity_deficit_score:.1f}" if adaptive_capacity_deficit_score is not None else "UNKNOWN"
+        ag_score_str = f"{agreement_eval['agreement_score']:.1f}" if agreement_eval.get('agreement_score') is not None else "UNKNOWN"
         explanation = (
             f"PRAYAAS-RISK-1.0 Assessment for {hab.name}: Composite Risk = {composite_risk_score:.1f}/100 "
             f"({risk_classification}). Dominant hazard is {dominant_hazard} (Baseline Hazard: {baseline_hazard:.1f}, "
-            f"Dynamic: {dynamic_hazard:.1f}). Exposure: {exposure_score:.1f}, Social Vulnerability: {vulnerability_score:.1f}, "
-            f"Adaptive Deficit: {adaptive_capacity_deficit_score:.1f}. Compound Adjustment: +{compound_adjustment:.1f}. "
-            f"Model Agreement: {agreement_eval['agreement_level']} (Score: {agreement_eval['agreement_score']:.1f}). "
+            f"Dynamic: {dynamic_hazard:.1f}). Exposure: {exp_str}, Social Vulnerability: {vuln_str}, "
+            f"Adaptive Deficit: {adapt_str}. Compound Adjustment: +{compound_adjustment:.1f}. "
+            f"Model Agreement: {agreement_eval['agreement_level']} (Score: {ag_score_str}). "
             f"Habitation Sustainability Index: {sustainability_index:.1f}/100. Confidence: {confidence_score:.1f}%."
         )
 
