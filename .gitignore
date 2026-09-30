@@ -15,11 +15,13 @@ dist-ssr
 # Environment variables
 .env
 .env.*
+.env.production
 !.env.example
 
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 *.so
 .Python

@@ -5,11 +5,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "services": {
-    "prayaas-backend": {
-      "root": ".",
-      "framework": "vite"
-    }
-  }
+  ]
 }

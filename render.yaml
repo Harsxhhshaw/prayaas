@@ -16,8 +16,9 @@ services:
         value: production
       - key: APP_DEBUG
         value: "false"
+      # Allowed frontend origins. To support Vercel preview domains, add regex/domains via Render dashboard or append below.
       - key: CORS_ORIGINS
-        value: '["*"]'
+        value: '["https://prayaas-five.vercel.app", "https://prayaas-7fxgsq80i-harsxhhshaws-projects.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173"]'
 
 
 databases:

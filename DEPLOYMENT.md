@@ -48,8 +48,21 @@ This document tracks the live production deployment of the **PRAYAAS Geospatial 
 
 ### 2. Frontend GIS Workstation (Vercel)
 - **Framework**: Vite + React 19 + TypeScript.
-- **Environment Variables**: `VITE_API_BASE_URL` is set to `https://prayaas-backend-y1e6.onrender.com`.
+- **Environment Variables**: `VITE_API_BASE_URL` should be configured in the **Vercel Dashboard** under Project Settings → Environment Variables (set to `https://prayaas-backend-y1e6.onrender.com`). Do not commit `.env.production` to source control.
 - **Client Routing**: Configured with SPA rewrites to ensure direct route visits (`/red-zones`, `/data-sources`, `/relocation-priority`) load smoothly without 404s.
+
+---
+
+## Operational Notes & Infrastructure Warnings
+
+> [!WARNING]
+> **Render Free Tier Limitations & Expiry**:
+> 1. **PostgreSQL Expiry**: Render free PostgreSQL instances automatically expire **30 days** after creation, followed by a **14-day grace period** before deletion.
+> 2. **Cold Starts**: Render free tier web services spin down / sleep after **15 minutes of inactivity**. Waking a sleeping backend may take 50–90 seconds on first request.
+> 
+> **Migration & Fallback Options**:
+> - **Render Paid Tier / Supabase / Neon / AWS RDS**: Upgrade or attach an external managed PostgreSQL + PostGIS instance by updating the `DATABASE_URL` environment variable.
+> - **Offline Demo Snapshot**: PRAYAAS includes a standalone, frozen local demo snapshot (`src/data/raini-snapshot.json`) exported via `/api/governance/demo-snapshot/raini` that automatically services the entire decision workflow (Raini assessment, candidate discovery, relocation plans, robustness evaluation, and dossier) when the backend is sleeping or offline.
 
 ---
 
@@ -62,5 +75,5 @@ This document tracks the live production deployment of the **PRAYAAS Geospatial 
 2. **Geospatial & Risk Intelligence**:
    - `GET /api/habitations` → Returns Chamoli settlements with live multi-hazard risk scores, vulnerability vectors, and relocation urgency.
    - `GET /api/hazard-zones/geojson` → GeoJSON feature collections for landslide, flood, and subsidence polygons.
-   - `GET /api/candidate-sites` → Safe resettlement sites evaluated for carrying capacity and slope safety.
+   - `GET /api/candidate-sites` → Preliminary candidate relocation sites evaluated for carrying capacity and slope suitability.
    - `GET /api/relocation-priorities` → Multi-criteria relocation prioritization queue.

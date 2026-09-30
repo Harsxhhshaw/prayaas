@@ -82,7 +82,7 @@ flowchart TD
 ### Backend
 - **Framework**: FastAPI (Python 3.12+) + Pydantic v2
 - **ORM & Database Tooling**: SQLAlchemy 2.0, GeoAlchemy2, Alembic
-- **Optimization & Spatial Math**: PuLP (MIP Solver), NumPy, SciPy, Shapely
+- **Optimization & Spatial Math**: SciPy `milp` (HiGHS), NumPy, Shapely
 - **Database Driver**: `psycopg` (v3 binary)
 
 ### Database
@@ -246,12 +246,21 @@ PRAYAAS/
 
 ## 12. Screenshots
 
-*(Screenshots and demo walk-through captures can be viewed in the presentation deck or attached project dossier.)*
+Verified presentation and evaluation screenshots are archived in [`artifacts/prayaas_presentation_screenshots/`](artifacts/prayaas_presentation_screenshots/):
+- `01_command_centre.png`: Main GIS Command Centre workstation with Chamoli catchment and active layer drawer.
+- `02_raini_assessment.png`: Multi-hazard risk assessment for Raini (`HAB-002`, Permanent Red, 87.0 composite risk).
+- `03_candidate_discovery_map.png`: Candidate discovery feasible mask (slope $\le 25^\circ$) with modeled candidate parcels.
+- `04_candidate_detail.png`: Candidate inspection for Chamoli Town Extension (`RS-002`, 78/100 suitability, 6,200 capacity).
+- `05_candidate_sites_inventory.png`: Candidate relocation sites inventory table with spatial parameters.
+- `07_relocation_priority_matrix.png`: Relocation priority matrix with 13 red-zone settlements.
+- `08_scenario_lab_workspace.png`: Multi-hazard scenario lab parametric stress workspace.
+- `09_digital_twin_3d_workspace.png`: 3D Digital Twin simulation workspace.
+- `10_evidence_layers_pipeline.png`: Scientific data pipeline and telemetry evidence feeds.
 
 ---
 
 ## 13. License & Data Notice
 
-- **Project Status**: Developed for the Smart India Hackathon (SIH 2024 / Problem Statement SIH26191).
+- **Project Status**: Developed for the Smart India Hackathon 2026 (Problem Statement SIH26191).
 - **License**: License to be finalized.
 - **Third-Party Data Notice**: All external reference datasets (including DEM, CartoDEM, OpenStreetMap features, and administrative boundaries) retain their respective original terms of use, licensing, and attribution.
